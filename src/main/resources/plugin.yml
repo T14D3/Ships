@@ -1,0 +1,13 @@
+name: Ships
+version: '0.0.1'
+main: de.t14d3.ships.Ships
+api-version: '1.21'
+prefix: Ships
+authors: [ T14D3 ]
+description: Fancy ships!
+load: STARTUP
+depend: [ProtocolLib]
+commands:
+  ships:
+    description: Converts blocks to entities
+    usage: /ships
