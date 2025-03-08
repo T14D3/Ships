@@ -5,6 +5,8 @@ import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.util.Vector;
+import org.joml.Quaternionf;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -19,10 +21,12 @@ public class ShipManager {
             @Override
             public void run() {
                 for (Ship ship : ships.values()) {
-                    if (ship.getVector().isZero()) {
-                        continue;
+                    if (!ship.getVector().isZero()) {
+                        ship.move(ship.getVector());
                     }
-                    ship.move(ship.getVector());
+                    if (!ship.getOrientation().equals(new Quaternionf())) {
+                        ship.rotate(ship.getVectorToRotate());
+                    }
                 }
             }
         }.runTaskTimer(plugin, 0, 1);

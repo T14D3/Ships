@@ -41,6 +41,7 @@ public class InteractListener implements Listener {
             Ship ship = plugin.getShipManager().getControlledBy(player);
             if (ship != null) {
                 ship.setVector(new Vector(0, 0, 0));
+                ship.setVectorToRotate(new Vector(0, 0, 0));
                 ship.setController(null);
             }
         }

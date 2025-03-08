@@ -41,10 +41,11 @@ public class MoveListener implements Listener {
                 Input input = (Input) event.getPacket().getModifier().readSafely(0);
 
                 Vector direction = new Vector();
+                Vector rotation = new Vector();
                 if (input.left())
-                    direction.add(player.getLocation().getDirection().clone().setY(0).normalize().crossProduct(new Vector(0, 1, 0)).multiply(-0.1));
+                    rotation.add(new Vector(0, 1, 0).multiply(-1)); // Rotate left
                 if (input.right())
-                    direction.add(player.getLocation().getDirection().clone().setY(0).normalize().crossProduct(new Vector(0, 1, 0)).multiply(0.1));
+                    rotation.add(new Vector(0, 1, 0)); // Rotate right
                 if (input.forward())
                     direction.add(player.getLocation().getDirection().clone().setY(0).normalize().multiply(0.1));
                 if (input.backward())
@@ -53,6 +54,7 @@ public class MoveListener implements Listener {
                 if (input.sprint()) direction.add(new Vector(0, -0.1, 0));
 
                 ship.setVector(direction);
+                ship.rotate(rotation);
             }
 
         });
