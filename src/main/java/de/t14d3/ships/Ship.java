@@ -6,6 +6,7 @@ import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Shulker;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 import io.papermc.paper.entity.TeleportFlag;
@@ -18,6 +19,9 @@ public class Ship {
     private final List<Shulker> shulkers;
     private final List<Vector> shulkerOffsets;
     private final List<ArmorStand> shulkerArmorStands;
+
+    private Vector velocity;
+
     private Player controller;
 
     public Ship(ArmorStand origin, List<BlockDisplay> blockDisplays, List<Shulker> shulkers, List<Vector> shulkerOffsets, List<ArmorStand> shulkerArmorStands) {
@@ -30,11 +34,15 @@ public class Ship {
         for (Shulker shulker : shulkers) {
             shulker.getPersistentDataContainer().set(key, PersistentDataType.STRING, uuid.toString());
         }
+        for (ArmorStand shulkerArmorStand : shulkerArmorStands) {
+            shulkerArmorStand.getPersistentDataContainer().set(key, PersistentDataType.STRING, uuid.toString());
+        }
         this.shulkerArmorStands = shulkerArmorStands;
         this.origin = origin;
         this.blockDisplays = blockDisplays;
         this.shulkers = shulkers;
         this.shulkerOffsets = shulkerOffsets;
+        this.velocity = new Vector(0, 0, 0);
     }
 
     public List<BlockDisplay> getBlockDisplays() {
@@ -50,17 +58,25 @@ public class Ship {
     }
 
     public void moveTo(Location newLocation) {
-        origin.teleport(newLocation, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+        origin.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         for (int i = 0; i < shulkerArmorStands.size(); i++) {
             ArmorStand shulkerArmorStand = shulkerArmorStands.get(i);
             Vector offset = shulkerOffsets.get(i);
             Location shulkerLoc = newLocation.clone().add(offset);
-            shulkerArmorStand.teleport(shulkerLoc.clone().add(0.5, 0, 0.5), TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            shulkerArmorStand.teleportAsync(shulkerLoc.clone().add(0.5, 0, 0.5), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
     }
 
     public void move(Vector direction) {
         moveTo(origin.getLocation().add(direction));
+    }
+
+    public void setVector(Vector vector) {
+        this.velocity = vector;
+    }
+
+    public Vector getVector() {
+        return velocity;
     }
 
     public void setController(Player player) {

@@ -1,9 +1,11 @@
 package de.t14d3.ships;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.persistence.PersistentDataType;
@@ -18,6 +20,8 @@ import java.util.List;
 public class Converter {
     private final Ships plugin;
     private BukkitTask task;
+
+    private static final BlockData AIR = Bukkit.createBlockData(Material.AIR);
 
     public Converter(Ships plugin) {
         this.plugin = plugin;
@@ -51,6 +55,8 @@ public class Converter {
         List<BlockDisplay> blockDisplays = new ArrayList<>();
         List<Shulker> shulkers = new ArrayList<>();
         List<Vector> shulkerOffsets = new ArrayList<>();
+
+        List<Block> blocksToRemove = new ArrayList<>();
 
         for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
             for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
@@ -118,7 +124,7 @@ public class Converter {
 
                         shulkers.add(shulker);
                         shulkerArmorStands.add(shulkerArmorStand);
-                        block.setType(Material.AIR);
+                        block.setBlockData(AIR, false);
                     }
                 }
             }

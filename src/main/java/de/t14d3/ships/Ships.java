@@ -36,7 +36,7 @@ public final class Ships extends JavaPlugin {
         chunkLoadEvent = new ChunkLoadEvent(this);
         getServer().getPluginManager().registerEvents(chunkLoadEvent, this);
 
-        shipManager = new ShipManager();
+        shipManager = new ShipManager(this);
         moveListener = new MoveListener(this);
     }
 

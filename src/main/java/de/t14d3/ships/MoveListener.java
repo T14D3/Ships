@@ -5,10 +5,11 @@ import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
+import net.minecraft.world.entity.player.Input;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
-import org.bukkit.util.Vector;
 import com.comphenix.protocol.ProtocolManager;
+import org.bukkit.util.Vector;
 
 public class MoveListener implements Listener {
     private final Ships thisplugin;
@@ -24,32 +25,37 @@ public class MoveListener implements Listener {
         protocolManager.addPacketListener(new PacketAdapter(
                 thisplugin,
                 ListenerPriority.NORMAL,
-                PacketType.Play.Server.VEHICLE_MOVE
+                PacketType.Play.Client.STEER_VEHICLE
         ) {
             @Override
             public void onPacketReceiving(PacketEvent event) {
-                    Player player = event.getPlayer();
+                Player player = event.getPlayer();
 
-                    Ship ship = thisplugin.getShipManager().getShip(player.getUniqueId());
-                    if (ship == null) return;
-
-                    // Extract steering and movement data
-                    boolean left = event.getPacket().getBooleans().read(0);
-                    boolean right = event.getPacket().getBooleans().read(1);
-                    boolean forward = event.getPacket().getBooleans().read(2);
-                    boolean backward = event.getPacket().getBooleans().read(3);
-
-                    // Handle the steering direction
-                    Vector direction = new Vector();
-                    if (left) direction.add(new Vector(-1, 0, 0));
-                    if (right) direction.add(new Vector(1, 0, 0));
-                    if (forward) direction.add(new Vector(0, 0, 1));
-                    if (backward) direction.add(new Vector(0, 0, -1));
-
-                    ship.move(direction);
-
+                if (!player.isInsideVehicle()) {
+                    return;
                 }
+
+                Ship ship = thisplugin.getShipManager().getControlledBy(player);
+                if (ship == null) return;
+
+                Input input = (Input) event.getPacket().getModifier().readSafely(0);
+
+                Vector direction = new Vector();
+                if (input.left())
+                    direction.add(player.getLocation().getDirection().clone().setY(0).normalize().crossProduct(new Vector(0, 1, 0)).multiply(-0.1));
+                if (input.right())
+                    direction.add(player.getLocation().getDirection().clone().setY(0).normalize().crossProduct(new Vector(0, 1, 0)).multiply(0.1));
+                if (input.forward())
+                    direction.add(player.getLocation().getDirection().clone().setY(0).normalize().multiply(0.1));
+                if (input.backward())
+                    direction.add(player.getLocation().getDirection().clone().setY(0).normalize().multiply(-0.1));
+                if (input.jump()) direction.add(new Vector(0, 0.1, 0));
+                if (input.sprint()) direction.add(new Vector(0, -0.1, 0));
+
+                ship.setVector(direction);
+            }
 
         });
     }
+
 }
