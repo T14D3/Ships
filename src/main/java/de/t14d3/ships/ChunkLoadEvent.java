@@ -29,6 +29,7 @@ public class ChunkLoadEvent implements Listener {
             public void run() {
                 NamespacedKey shipKey = new NamespacedKey(plugin, "ship");
                 NamespacedKey offsetKey = new NamespacedKey(plugin, "offset");
+                NamespacedKey shulkerKey = new NamespacedKey(plugin, "shulker");
 
                 for (Entity entity : event.getChunk().getEntities()) {
 
@@ -50,12 +51,22 @@ public class ChunkLoadEvent implements Listener {
 
                         for (Entity nearbyEntity : nearbyEntities) {
                             if (nearbyEntity instanceof BlockDisplay display) {
+                                UUID shulkerUuid = UUID.fromString(display.getPersistentDataContainer().get(shulkerKey, PersistentDataType.STRING));
                                 Vector offset = new Vector(0, 0, 0);
                                 if (display.getPersistentDataContainer().has(offsetKey, PersistentDataType.STRING)) {
                                     String[] offsetParts = display.getPersistentDataContainer().get(offsetKey, PersistentDataType.STRING).split(",");
                                     offset = new Vector(Double.parseDouble(offsetParts[0]), Double.parseDouble(offsetParts[1]), Double.parseDouble(offsetParts[2]));
                                 }
-                                shipBlocks.add(new ShipBlock(display, display.getLocation().getBlock(), offset));
+
+                                Shulker shulker;
+                                try {
+                                    shulker = plugin.getServer().getScheduler().callSyncMethod(plugin, () -> (Shulker) event.getWorld().getEntity(shulkerUuid)).get();
+                                } catch (InterruptedException | ExecutionException e) {
+                                    throw new RuntimeException(e);
+                                }
+                                if (shulker != null) {
+                                    shipBlocks.add(new ShipBlock(display, shulker, offset));
+                                }
                             }
                         }
 

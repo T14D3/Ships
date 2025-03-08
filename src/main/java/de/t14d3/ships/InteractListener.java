@@ -5,12 +5,14 @@ import net.minecraft.world.entity.Display;
 import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.craftbukkit.entity.CraftBlockDisplay;
-import org.bukkit.entity.*;
+import org.bukkit.entity.ArmorStand;
+import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
+import org.bukkit.entity.Shulker;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
@@ -24,25 +26,23 @@ public class InteractListener implements Listener {
     }
 
     @EventHandler
-    public void onInteract(PlayerInteractEvent event) {
-        if (event.getClickedBlock() != null) {
-            Ship ship = plugin.getShipManager().getNearestShip(event.getClickedBlock().getLocation());
+    public void onInteract(PlayerInteractEntityEvent event) {
+        if (event.getRightClicked() instanceof Shulker shulker) {
+            UUID shipUuid = UUID.fromString(event.getRightClicked().getPersistentDataContainer().get(new NamespacedKey(plugin, "ship"), PersistentDataType.STRING));
+            Ship ship = plugin.getShipManager().getShip(shipUuid);
             if (ship != null) {
-                BlockDisplay blockDisplay = ship.getBlockDisplay(event.getClickedBlock());
-                if (blockDisplay != null) {
-                    if (ship.getController() == null) {
-                        ship.setController(event.getPlayer());
-                        ArmorStand seat = (ArmorStand) event.getClickedBlock().getWorld().spawnEntity(event.getClickedBlock().getLocation(), EntityType.ARMOR_STAND);
-                        seat.setGravity(false);
-                        seat.setInvulnerable(true);
-                        seat.setInvisible(true);
-                        seat.setSmall(true);
-                        seat.customName(Component.text("Seat"));
-                        ship.getBlockDisplay(event.getClickedBlock()).addPassenger(seat);
-                        seat.addPassenger(event.getPlayer());
-                    } else {
-                        event.getPlayer().sendMessage("Ship is already controlled by " + ship.getController().getName());
-                    }
+                if (ship.getController() == null) {
+                    ship.setController(event.getPlayer());
+                    ArmorStand seat = (ArmorStand) event.getRightClicked().getWorld().spawnEntity(event.getRightClicked().getLocation(), EntityType.ARMOR_STAND);
+                    seat.setGravity(false);
+                    seat.setInvulnerable(true);
+                    seat.setInvisible(true);
+                    seat.setSmall(true);
+                    seat.customName(Component.text("Seat"));
+                    ship.getBlockDisplay(shulker).addPassenger(seat);
+                    seat.addPassenger(event.getPlayer());
+                } else {
+                    event.getPlayer().sendMessage("Ship is already controlled by " + ship.getController().getName());
                 }
             }
         }

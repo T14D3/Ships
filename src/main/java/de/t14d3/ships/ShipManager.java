@@ -44,7 +44,7 @@ public class ShipManager {
         Ship nearestShip = null;
         double nearestDistance = Double.MAX_VALUE;
         for (Ship ship : ships.values()) {
-            double distance = ship.getOrigin().getLocation().distanceSquared(location);
+            double distance = ship.getOrigin().getLocation().distance(location);
             if (distance < nearestDistance) {
                 nearestDistance = distance;
                 nearestShip = ship;
@@ -58,10 +58,8 @@ public class ShipManager {
         if (ship != null) { 
             ship.getOrigin().remove(); 
             ship.getShipBlocks().forEach(shipBlock -> { 
-                shipBlock.getBlockDisplay().remove();
-                if (shipBlock.getBlock() != null) {
-                    shipBlock.getBlock().setBlockData(ShipBlock.AIR, false);
-                }
+                shipBlock.getBlockDisplay().remove(); 
+                shipBlock.getShulker().remove(); 
             }); 
         } 
     }
