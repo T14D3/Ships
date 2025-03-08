@@ -207,7 +207,9 @@ public class Ship {
             Shulker shulker = shipBlock.getShulker();
             Location newLocation = originLocation.clone()
                     .add(rotatedOffset);
-            shulker.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            if (shulker != null) {
+                shulker.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            }
             shipBlock.getBlockDisplay().teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
     }
