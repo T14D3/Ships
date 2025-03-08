@@ -2,6 +2,8 @@ package de.t14d3.ships;
 
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Player;
@@ -17,8 +19,13 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+
+import static de.t14d3.ships.ShipBlock.AIR;
+import static de.t14d3.ships.ShipBlock.BARRIER;
 
 public class Ship {
     private final ArmorStand origin;
@@ -50,7 +57,6 @@ public class Ship {
                     blockDisplay.getTransformation().getRightRotation()
             );
             blockDisplay.setTransformation(transformation);
-
         }
         this.origin = origin;
         this.velocity = new Vector(0, 0, 0);
@@ -66,9 +72,9 @@ public class Ship {
         return origin;
     }
 
-    public BlockDisplay getBlockDisplay(Shulker shulker) {
+    public BlockDisplay getBlockDisplay(Block block) {
         for (ShipBlock shipBlock : shipBlocks) {
-            if (shipBlock.getShulker() != null && shipBlock.getShulker().equals(shulker)) {
+            if (shipBlock.getBlock() != null && shipBlock.getBlock().equals(block)) {
                 return shipBlock.getBlockDisplay();
             }
         }
@@ -80,10 +86,14 @@ public class Ship {
         for (ShipBlock shipBlock : shipBlocks) {
             Vector offset = shipBlock.getOffset();
             Location dest = newLocation.clone().add(offset);
-            if (shipBlock.getShulker() != null) {
-                shipBlock.getShulker().teleportAsync(dest, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
-            }
             shipBlock.getBlockDisplay().teleport(dest, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            if (shipBlock.getBlock() != null) {
+                if (shipBlock.getBlock().getType() == Material.BARRIER) {
+                    shipBlock.getBlock().setBlockData(AIR, false);
+                }
+                shipBlock.setBlock(dest.getBlock());
+                shipBlock.getBlock().setBlockData(BARRIER, false);
+            }
         }
     }
 
@@ -204,10 +214,9 @@ public class Ship {
             shipBlock.setOffset(rotatedOffset);
 
             // Teleport Shulker to new position
-            Shulker shulker = shipBlock.getShulker();
+
             Location newLocation = originLocation.clone()
                     .add(rotatedOffset);
-            shulker.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
             shipBlock.getBlockDisplay().teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
     }

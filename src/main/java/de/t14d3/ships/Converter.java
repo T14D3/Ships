@@ -20,6 +20,8 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.List;
 
+import static de.t14d3.ships.ShipBlock.BARRIER;
+
 public class Converter {
     private static final BlockData AIR = Bukkit.createBlockData(Material.AIR);
     private final Ships plugin;
@@ -95,30 +97,11 @@ public class Converter {
                             // Store offset in block display's persistent data container
                             String offsetString = offsetX + "," + offsetY + "," + offsetZ;
                             blockDisplay.getPersistentDataContainer().set(offsetKey, PersistentDataType.STRING, offsetString);
-                            Shulker shulker = null;
-                            if (block.getType().isSolid() && !block.getRelative(BlockFace.UP).getType().isSolid()) {
-                                shulker = (Shulker) block.getWorld().spawnEntity(block.getLocation(), EntityType.SHULKER);
-                                shulker.setInvisible(true);
-                                shulker.setAI(false);
-                                shulker.setInvulnerable(true);
-                                shulker.setCollidable(false);
-                                shulker.setSilent(true);
-                                shulker.setGravity(false);
-                                shulker.setNoPhysics(true);
-                                shulker.setPeek(0);
-
-                                plugin.getCollisionTeam().addEntity(shulker);
-
-                                // Store ship UUID in shulker's persistent data container
-                                shulker.getPersistentDataContainer().set(shipKey,
-                                        PersistentDataType.STRING,
-                                        marker.getUniqueId().toString());
-
-                                blockDisplay.getPersistentDataContainer().set(shulkerKey,
-                                        PersistentDataType.STRING,
-                                        shulker.getUniqueId().toString());
+                            Block tempBlock = block;
+                            if (block.getBoundingBox().getVolume() < 0.5) {
+                                tempBlock = null;
                             }
-                            shipBlocks.add(new ShipBlock(blockDisplay, shulker, new Vector(offsetX, offsetY, offsetZ)));
+                            shipBlocks.add(new ShipBlock(blockDisplay, tempBlock, new Vector(offsetX, offsetY, offsetZ)));
                         }
                         blocksToRemove.add(block);
                     }
@@ -130,7 +113,7 @@ public class Converter {
         plugin.getShipManager().addShip(ship);
 
         for (Block block : blocksToRemove) {
-            block.setBlockData(AIR, false);
+            block.setBlockData(BARRIER, false);
         }
 
         player.sendMessage("Ship created");
