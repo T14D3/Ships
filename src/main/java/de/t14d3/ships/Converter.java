@@ -39,11 +39,16 @@ public class Converter {
                 Math.max(pos1.getY(), pos2.getY()),
                 Math.max(pos1.getZ(), pos2.getZ()));
 
+        double centerX = min.getX() + (max.getX() - min.getX()) / 2.0;
+        double centerY = min.getY() + (max.getY() - min.getY()) / 2.0;
+        double centerZ = min.getZ() + (max.getZ() - min.getZ()) / 2.0;
+        Location center = new Location(player.getWorld(), centerX, centerY, centerZ);
+
         // Create persistent data keys
         NamespacedKey shipKey = new NamespacedKey(plugin, "ship");
         NamespacedKey offsetKey = new NamespacedKey(plugin, "offset");
 
-        ArmorStand marker = (ArmorStand) player.getWorld().spawnEntity(min, EntityType.ARMOR_STAND);
+        ArmorStand marker = (ArmorStand) player.getWorld().spawnEntity(center, EntityType.ARMOR_STAND);
         marker.setGravity(false);
         marker.setInvulnerable(true);
         marker.setInvisible(true);
@@ -64,14 +69,14 @@ public class Converter {
                     Block block = min.getWorld().getBlockAt(x, y, z);
                     if (!block.getType().isAir()) {
 
-                        BlockDisplay blockDisplay = (BlockDisplay) min.getWorld().spawnEntity(min, EntityType.BLOCK_DISPLAY);
+                        BlockDisplay blockDisplay = (BlockDisplay) min.getWorld().spawnEntity(center, EntityType.BLOCK_DISPLAY);
                         blockDisplay.setBlock(block.getBlockData());
 
-                        Vector3f offset = new Vector3f(
-                                (float) (x - min.getX()),
-                                (float) (y - min.getY()),
-                                (float) (z - min.getZ())
-                        );
+                        // Calculate offset relative to the center
+                        float offsetX = (float) (x - centerX);
+                        float offsetY = (float) (y - centerY);
+                        float offsetZ = (float) (z - centerZ);
+                        Vector3f offset = new Vector3f(offsetX, offsetY, offsetZ);
 
                         Transformation transformation = new Transformation(
                                 offset,
@@ -103,7 +108,11 @@ public class Converter {
                         shulker.setPeek(0);
 
                         // Calculate and store offset
-                        Vector shulkerOffset = block.getLocation().subtract(min).toVector();
+                        Vector shulkerOffset = new Vector(
+                                x - centerX,
+                                y - centerY,
+                                z - centerZ
+                        );
                         shulkerOffsets.add(shulkerOffset);
 
                         // Store offset in shulker's persistent data container

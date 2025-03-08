@@ -25,8 +25,12 @@ public class InteractListener implements Listener {
             UUID shipUuid = UUID.fromString(event.getRightClicked().getPersistentDataContainer().get(new NamespacedKey(plugin, "ship"), PersistentDataType.STRING));
             Ship ship = plugin.getShipManager().getShip(shipUuid);
             if (ship != null) {
-                ship.setController(event.getPlayer());
-                event.getRightClicked().addPassenger(event.getPlayer());
+                if (ship.getController() == null) {
+                    ship.setController(event.getPlayer());
+                    event.getRightClicked().addPassenger(event.getPlayer());
+                } else {
+                    event.getPlayer().sendMessage("Ship is already controlled by " + ship.getController().getName());
+                }
             }
         }
     }

@@ -57,7 +57,7 @@ public class ChunkLoadEvent implements Listener {
                         List<Vector> shulkerOffsets = new ArrayList<>();
                         List<ArmorStand> shulkerArmorStands = new ArrayList<>();
 
-                        List<Entity> nearbyEntities = new ArrayList<>();
+                        List<Entity> nearbyEntities;
 
                         try {
                             nearbyEntities = plugin.getServer().getScheduler().callSyncMethod(plugin, () -> armorStand.getNearbyEntities(50, 50, 50)).get();
