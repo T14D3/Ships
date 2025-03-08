@@ -17,9 +17,12 @@ public class DeathListener implements Listener {
         Ship ship = plugin.getShipManager().getShip(event.getEntity().getUniqueId());
         if (ship != null) {
             ship.getOrigin().remove();
-            ship.getBlockDisplays().forEach(Entity::remove);
-            ship.getShulkers().forEach(Entity::remove);
-            ship.getShulkerArmorStands().forEach(Entity::remove);
+            ship.getShipBlocks().forEach(shipBlock -> {
+                shipBlock.getBlockDisplay().remove();
+                if (shipBlock.getShulker() != null) {
+                    shipBlock.getShulker().remove();
+                }
+            });
             plugin.getShipManager().removeShip(event.getEntity().getUniqueId());
         }
     }

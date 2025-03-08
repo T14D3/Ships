@@ -8,70 +8,82 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Shulker;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.BlockVector;
+import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import io.papermc.paper.entity.TeleportFlag;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 public class Ship {
     private final ArmorStand origin;
-    private final List<BlockDisplay> blockDisplays;
-    private final List<Shulker> shulkers;
-    private final List<Vector> shulkerOffsets;
-    private final List<ArmorStand> shulkerArmorStands;
+    private List<ShipBlock> shipBlocks;
 
     private Vector velocity;
     private Vector vectorToRotate;
     private Quaternionf orientation;
-
     private Player controller;
 
-    public Ship(ArmorStand origin, List<BlockDisplay> blockDisplays, List<Shulker> shulkers, List<Vector> shulkerOffsets, List<ArmorStand> shulkerArmorStands) {
+    private List<Player> playersInShip = new ArrayList<>();
+
+    public Ship(ArmorStand origin, List<ShipBlock> shipBlocks) {
         NamespacedKey key = new NamespacedKey(Ships.getInstance(), "ship");
         UUID uuid = origin.getUniqueId();
         origin.getPersistentDataContainer().set(key, PersistentDataType.STRING, "SHIP-ORIGIN");
-        for (BlockDisplay blockDisplay : blockDisplays) {
+        this.shipBlocks = shipBlocks;
+        for (ShipBlock shipBlock : shipBlocks) {
+            BlockDisplay blockDisplay = shipBlock.getBlockDisplay();
             blockDisplay.getPersistentDataContainer().set(key, PersistentDataType.STRING, uuid.toString());
+            blockDisplay.setTeleportDuration(1);
+            blockDisplay.setInterpolationDelay(1);
+            blockDisplay.setInterpolationDuration(1);
+
+            Transformation transformation = new Transformation(
+                    new Vector3f(-0.5f, 0, -0.5f),
+                    blockDisplay.getTransformation().getLeftRotation(),
+                    blockDisplay.getTransformation().getScale(),
+                    blockDisplay.getTransformation().getRightRotation()
+            );
+            blockDisplay.setTransformation(transformation);
+
         }
-        for (Shulker shulker : shulkers) {
-            shulker.getPersistentDataContainer().set(key, PersistentDataType.STRING, uuid.toString());
-        }
-        for (ArmorStand shulkerArmorStand : shulkerArmorStands) {
-            shulkerArmorStand.getPersistentDataContainer().set(key, PersistentDataType.STRING, uuid.toString());
-        }
-        this.shulkerArmorStands = shulkerArmorStands;
         this.origin = origin;
-        this.blockDisplays = blockDisplays;
-        this.shulkers = shulkers;
-        this.shulkerOffsets = shulkerOffsets;
         this.velocity = new Vector(0, 0, 0);
         this.vectorToRotate = new Vector(0, 0, 0);
         this.orientation = new Quaternionf();
     }
 
-    public List<BlockDisplay> getBlockDisplays() {
-        return blockDisplays;
-    }
-
-    public List<Shulker> getShulkers() {
-        return shulkers;
+    public List<ShipBlock> getShipBlocks() {
+        return shipBlocks;
     }
 
     public ArmorStand getOrigin() {
         return origin;
     }
 
+    public BlockDisplay getBlockDisplay(Shulker shulker) {
+        for (ShipBlock shipBlock : shipBlocks) {
+            if (shipBlock.getShulker() != null && shipBlock.getShulker().equals(shulker)) {
+                return shipBlock.getBlockDisplay();
+            }
+        }
+        return null;
+    }
+
     public void moveTo(Location newLocation) {
         origin.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
-        for (int i = 0; i < shulkerArmorStands.size(); i++) {
-            ArmorStand shulkerArmorStand = shulkerArmorStands.get(i);
-            Vector offset = shulkerOffsets.get(i);
-            Location shulkerLoc = newLocation.clone().add(offset);
-            shulkerArmorStand.teleportAsync(shulkerLoc.clone().add(0.5, 0, 0.5), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+        for (ShipBlock shipBlock : shipBlocks) {
+            Vector offset = shipBlock.getOffset();
+            Location dest = newLocation.clone().add(offset);
+            if (shipBlock.getShulker() != null) {
+                shipBlock.getShulker().teleportAsync(dest, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            }
+            shipBlock.getBlockDisplay().teleport(dest, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
     }
 
@@ -122,20 +134,24 @@ public class Ship {
         return controller;
     }
 
-    public List<ArmorStand> getShulkerArmorStands() {
-        return shulkerArmorStands;
+    protected void addShipBlocks(List<ShipBlock> shipBlocks) {
+        this.shipBlocks.addAll(shipBlocks);
     }
 
-    protected void addBlockDisplays(List<BlockDisplay> blockDisplays) {
-        this.blockDisplays.addAll(blockDisplays);
+    public void addPlayer(Player player) {
+        this.playersInShip.add(player);
     }
 
-    protected void addShulkers(List<Shulker> shulkers) {
-        this.shulkers.addAll(shulkers);
+    public void removePlayer(Player player) {
+        this.playersInShip.remove(player);
     }
 
-    protected void addShulkerArmorStands(List<ArmorStand> shulkerArmorStands) {
-        this.shulkerArmorStands.addAll(shulkerArmorStands);
+    public List<Player> getPlayersInShip() {
+        return playersInShip;
+    }
+
+    public boolean isPlayerInShip(Player player) {
+        return playersInShip.contains(player);
     }
 
     public void rotate(Vector deltaEulerAngles) {
@@ -154,7 +170,8 @@ public class Ship {
         orientation.mul(deltaQuat); // Multiply delta into current orientation
 
         // Rotate each BlockDisplay
-        for (BlockDisplay blockDisplay : blockDisplays) {
+        for (ShipBlock shipBlock : shipBlocks) {
+            BlockDisplay blockDisplay = shipBlock.getBlockDisplay();
             Transformation oldTransformation = blockDisplay.getTransformation();
             Vector3f translation = new Vector3f(oldTransformation.getTranslation());
 
@@ -173,8 +190,8 @@ public class Ship {
 
         // Update Shulker offsets relative to the origin
         Location originLocation = origin.getLocation();
-        for (int i = 0; i < shulkerOffsets.size(); i++) {
-            Vector originalOffset = shulkerOffsets.get(i);
+        for (ShipBlock shipBlock : shipBlocks) {
+            Vector originalOffset = shipBlock.getOffset();
             Vector3f offset3f = new Vector3f(
                     (float) originalOffset.getX(),
                     (float) originalOffset.getY(),
@@ -184,14 +201,14 @@ public class Ship {
             // Apply delta rotation to the Shulker's offset
             offset3f.rotate(deltaQuat);
             Vector rotatedOffset = new Vector(offset3f.x, offset3f.y, offset3f.z);
-            shulkerOffsets.set(i, rotatedOffset);
+            shipBlock.setOffset(rotatedOffset);
 
-            // Teleport Shulker armor stand to new position
-            ArmorStand armorStand = shulkerArmorStands.get(i);
+            // Teleport Shulker to new position
+            Shulker shulker = shipBlock.getShulker();
             Location newLocation = originLocation.clone()
-                    .add(rotatedOffset)
-                    .add(0.5, 0, 0.5); // Center on block
-            armorStand.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+                    .add(rotatedOffset);
+            shulker.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            shipBlock.getBlockDisplay().teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
     }
 }

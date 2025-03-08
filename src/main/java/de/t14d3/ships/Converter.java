@@ -5,8 +5,10 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
+import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.entity.*;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
@@ -14,22 +16,38 @@ import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class Converter {
+    private static final BlockData AIR = Bukkit.createBlockData(Material.AIR);
     private final Ships plugin;
     private BukkitTask task;
-
-    private static final BlockData AIR = Bukkit.createBlockData(Material.AIR);
 
     public Converter(Ships plugin) {
         this.plugin = plugin;
     }
 
+    static boolean isHidden(Block block) {
+        return
+                (block.getRelative(BlockFace.DOWN).getType().isSolid()) &&
+                        (block.getRelative(BlockFace.UP).getType().isSolid()) &&
+                        (block.getRelative(BlockFace.NORTH).getType().isSolid()) &&
+                        (block.getRelative(BlockFace.SOUTH).getType().isSolid()) &&
+                        (block.getRelative(BlockFace.EAST).getType().isSolid()) &&
+                        (block.getRelative(BlockFace.WEST).getType().isSolid());
+    }
+
     public void convert(Player player) {
         Location pos1 = (Location) player.getMetadata("pos1").get(0).value();
         Location pos2 = (Location) player.getMetadata("pos2").get(0).value();
+        Location temp = (Location) player.getMetadata("center").get(0).value();
+        double centerX = temp.getX();
+        double centerY = temp.getY();
+        double centerZ = temp.getZ();
+        Location center = new Location(player.getWorld(), centerX, centerY, centerZ);
+
         Location min = new Location(player.getWorld(),
                 Math.min(pos1.getX(), pos2.getX()),
                 Math.min(pos1.getY(), pos2.getY()),
@@ -39,108 +57,83 @@ public class Converter {
                 Math.max(pos1.getY(), pos2.getY()),
                 Math.max(pos1.getZ(), pos2.getZ()));
 
-        double centerX = min.getX() + (max.getX() - min.getX()) / 2.0;
-        double centerY = min.getY() + (max.getY() - min.getY()) / 2.0;
-        double centerZ = min.getZ() + (max.getZ() - min.getZ()) / 2.0;
-        Location center = new Location(player.getWorld(), centerX, centerY, centerZ);
-
         // Create persistent data keys
         NamespacedKey shipKey = new NamespacedKey(plugin, "ship");
         NamespacedKey offsetKey = new NamespacedKey(plugin, "offset");
+        NamespacedKey shulkerKey = new NamespacedKey(plugin, "shulker");
 
         ArmorStand marker = (ArmorStand) player.getWorld().spawnEntity(center, EntityType.ARMOR_STAND);
         marker.setGravity(false);
         marker.setInvulnerable(true);
         marker.setInvisible(true);
-        List<ArmorStand> shulkerArmorStands = new ArrayList<>();
 
         // Tag the armor stand as ship origin
         marker.getPersistentDataContainer().set(shipKey, PersistentDataType.STRING, "SHIP-ORIGIN");
 
-        List<BlockDisplay> blockDisplays = new ArrayList<>();
-        List<Shulker> shulkers = new ArrayList<>();
-        List<Vector> shulkerOffsets = new ArrayList<>();
-
         List<Block> blocksToRemove = new ArrayList<>();
+        List<ShipBlock> shipBlocks = new ArrayList<>();
 
         for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
             for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
                 for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
                     Block block = min.getWorld().getBlockAt(x, y, z);
                     if (!block.getType().isAir()) {
+                        if (!isHidden(block)) {
+                            BlockDisplay blockDisplay = (BlockDisplay) min.getWorld().spawnEntity(block.getLocation(), EntityType.BLOCK_DISPLAY, CreatureSpawnEvent.SpawnReason.CUSTOM);
+                            blockDisplay.setBlock(block.getBlockData());
 
-                        BlockDisplay blockDisplay = (BlockDisplay) min.getWorld().spawnEntity(center, EntityType.BLOCK_DISPLAY);
-                        blockDisplay.setBlock(block.getBlockData());
+                            // Calculate offset relative to the center
+                            float offsetX = (float) (x - centerX);
+                            float offsetY = (float) (y - centerY);
+                            float offsetZ = (float) (z - centerZ);
 
-                        // Calculate offset relative to the center
-                        float offsetX = (float) (x - centerX);
-                        float offsetY = (float) (y - centerY);
-                        float offsetZ = (float) (z - centerZ);
-                        Vector3f offset = new Vector3f(offsetX, offsetY, offsetZ);
+                            // Tag block display with ship UUID
+                            blockDisplay.getPersistentDataContainer().set(shipKey,
+                                    PersistentDataType.STRING,
+                                    marker.getUniqueId().toString());
 
-                        Transformation transformation = new Transformation(
-                                offset,
-                                new Quaternionf(),
-                                blockDisplay.getTransformation().getScale(),
-                                new Quaternionf()
-                        );
+                            // Store offset in block display's persistent data container
+                            String offsetString = offsetX + "," + offsetY + "," + offsetZ;
+                            blockDisplay.getPersistentDataContainer().set(offsetKey, PersistentDataType.STRING, offsetString);
+                            Shulker shulker = null;
+                            if (block.getType().isSolid() && !block.getRelative(BlockFace.UP).getType().isSolid()) {
+                                shulker = (Shulker) block.getWorld().spawnEntity(block.getLocation(), EntityType.SHULKER);
+                                shulker.setInvisible(true);
+                                shulker.setAI(false);
+                                shulker.setInvulnerable(true);
+                                shulker.setCollidable(false);
+                                shulker.setSilent(true);
+                                shulker.setGravity(false);
+                                shulker.setNoPhysics(true);
+                                shulker.setPeek(0);
 
-                        blockDisplay.setTransformation(transformation);
-                        marker.addPassenger(blockDisplay);
-                        blockDisplays.add(blockDisplay);
+                                plugin.getCollisionTeam().addEntity(shulker);
 
-                        // Tag block display with ship UUID
-                        blockDisplay.getPersistentDataContainer().set(shipKey,
-                                PersistentDataType.STRING,
-                                marker.getUniqueId().toString());
+                                // Store ship UUID in shulker's persistent data container
+                                shulker.getPersistentDataContainer().set(shipKey,
+                                        PersistentDataType.STRING,
+                                        marker.getUniqueId().toString());
 
-                        Shulker shulker = (Shulker) block.getWorld().spawnEntity(block.getLocation(), EntityType.SHULKER);
-                        ArmorStand shulkerArmorStand = (ArmorStand) block.getWorld().spawnEntity(block.getLocation(), EntityType.ARMOR_STAND);
-                        shulkerArmorStand.setInvisible(true);
-                        shulkerArmorStand.setGravity(false);
-                        shulkerArmorStand.addPassenger(shulker);
-                        shulker.setInvisible(true);
-                        shulker.setAI(false);
-                        shulker.setInvulnerable(true);
-                        shulker.setCollidable(false);
-                        shulker.setSilent(true);
-                        shulker.setGravity(false);
-                        shulker.setPeek(0);
-
-                        // Calculate and store offset
-                        Vector shulkerOffset = new Vector(
-                                x - centerX,
-                                y - centerY,
-                                z - centerZ
-                        );
-                        shulkerOffsets.add(shulkerOffset);
-
-                        // Store offset in shulker's persistent data container
-                        String offsetString = shulkerOffset.getX() + "," +
-                                shulkerOffset.getY() + "," +
-                                shulkerOffset.getZ();
-                        shulkerArmorStand.getPersistentDataContainer().set(offsetKey,
-                                PersistentDataType.STRING,
-                                offsetString);
-
-                        // Tag shulker with ship UUID
-                        shulker.getPersistentDataContainer().set(shipKey,
-                                PersistentDataType.STRING,
-                                marker.getUniqueId().toString());
-                        shulkerArmorStand.getPersistentDataContainer().set(shipKey,
-                                PersistentDataType.STRING,
-                                marker.getUniqueId().toString());
-
-                        shulkers.add(shulker);
-                        shulkerArmorStands.add(shulkerArmorStand);
-                        block.setBlockData(AIR, false);
+                                blockDisplay.getPersistentDataContainer().set(shulkerKey,
+                                        PersistentDataType.STRING,
+                                        shulker.getUniqueId().toString());
+                            }
+                            shipBlocks.add(new ShipBlock(blockDisplay, shulker, new Vector(offsetX, offsetY, offsetZ)));
+                        }
+                        blocksToRemove.add(block);
                     }
                 }
             }
         }
 
-        Ship ship = new Ship(marker, blockDisplays, shulkers, shulkerOffsets, shulkerArmorStands);
+        Ship ship = new Ship(marker, shipBlocks);
         plugin.getShipManager().addShip(ship);
+
+        for (Block block : blocksToRemove) {
+            block.setBlockData(AIR, false);
+        }
+
+        player.sendMessage("Ship created");
     }
 
     public void move(Player player) {

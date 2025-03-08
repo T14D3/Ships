@@ -32,6 +32,12 @@ public class CommandListener implements CommandExecutor, TabCompleter {
                     player.setMetadata("pos2", new FixedMetadataValue(plugin, loc));
                 }
                 break;
+            case "center":
+                if (sender instanceof Player player) {
+                    Location loc = player.getLocation();
+                    player.setMetadata("center", new FixedMetadataValue(plugin, loc));
+                }
+                break;
             case "convert":
                 plugin.getConverter().convert(sender instanceof Player player ? player : null);
                 break;
@@ -47,7 +53,7 @@ public class CommandListener implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        List<String> completions = List.of("pos1", "pos2", "convert", "move");
+        List<String> completions = List.of("pos1", "pos2" ,"center", "convert", "move");
         return completions;
     }
 }

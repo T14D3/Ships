@@ -53,14 +53,15 @@ public class ShipManager {
         return nearestShip;
     }
 
-    public void removeShip(UUID markerUuid) {
-        Ship ship = ships.remove(markerUuid);
-        if (ship != null) {
-            ship.getOrigin().remove();
-            ship.getBlockDisplays().forEach(Entity::remove);
-            ship.getShulkers().forEach(Entity::remove);
-            ship.getShulkerArmorStands().forEach(Entity::remove);
-        }
+    public void removeShip(UUID markerUuid) { 
+        Ship ship = ships.remove(markerUuid); 
+        if (ship != null) { 
+            ship.getOrigin().remove(); 
+            ship.getShipBlocks().forEach(shipBlock -> { 
+                shipBlock.getBlockDisplay().remove(); 
+                shipBlock.getShulker().remove(); 
+            }); 
+        } 
     }
 
     public Ship getControlledBy(Player player) {
