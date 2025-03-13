@@ -44,6 +44,13 @@ public class CommandListener implements CommandExecutor, TabCompleter {
             case "move":
                 plugin.getConverter().move(sender instanceof Player player ? player : null);
                 break;
+            case "single":
+                Player player = sender instanceof Player temp ? temp : null;
+                plugin.getPacketUtils().sendPacket(player.getLocation(), player.rayTraceBlocks(10).getHitBlock().getState());
+                break;
+            case "multi":
+                plugin.getPacketUtils().multi((Player) sender);
+                break;
             default:
                 sender.sendMessage("Invalid command");
                 return true;

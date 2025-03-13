@@ -8,8 +8,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.entity.Shulker;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.util.BlockVector;
-import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
 import io.papermc.paper.entity.TeleportFlag;

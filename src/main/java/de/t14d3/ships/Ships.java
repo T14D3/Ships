@@ -19,6 +19,7 @@ public final class Ships extends JavaPlugin {
     private ProtocolManager protocolManager;
     private MoveListener moveListener;
     private Team collisionTeam;
+    private PacketUtils packetUtils;
 
     public static Ships getInstance() {
         return instance;
@@ -43,6 +44,8 @@ public final class Ships extends JavaPlugin {
 
         shipManager = new ShipManager(this);
         moveListener = new MoveListener(this);
+
+        packetUtils = new PacketUtils();
 
         getServer().getPluginManager().registerEvents(new CollisionTeamListener(), this);
     }
@@ -76,5 +79,9 @@ public final class Ships extends JavaPlugin {
                 collisionTeam.setOption(Team.Option.COLLISION_RULE, Team.OptionStatus.FOR_OTHER_TEAMS);
             }
         }
+    }
+
+    public PacketUtils getPacketUtils() {
+        return packetUtils;
     }
 }
