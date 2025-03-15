@@ -11,7 +11,6 @@ import org.bukkit.scoreboard.Team;
 public final class Ships extends JavaPlugin {
     private static Ships instance;
     private CommandListener commandListener;
-    private Converter converter;
     private DeathListener deathListener;
     private InteractListener interactListener;
     private ShipManager shipManager;
@@ -34,7 +33,6 @@ public final class Ships extends JavaPlugin {
         commandListener = new CommandListener();
         getCommand("ships").setExecutor(commandListener);
         getCommand("ships").setTabCompleter(commandListener);
-        converter = new Converter(this);
         deathListener = new DeathListener(this);
         getServer().getPluginManager().registerEvents(deathListener, this);
         interactListener = new InteractListener(this);
@@ -45,7 +43,7 @@ public final class Ships extends JavaPlugin {
         shipManager = new ShipManager(this);
         moveListener = new MoveListener(this);
 
-        packetUtils = new PacketUtils();
+        packetUtils = new PacketUtils(this);
 
         getServer().getPluginManager().registerEvents(new CollisionTeamListener(), this);
     }
@@ -53,10 +51,6 @@ public final class Ships extends JavaPlugin {
     @Override
     public void onDisable() {
         // Plugin shutdown logic
-    }
-
-    public Converter getConverter() {
-        return converter;
     }
 
     public ShipManager getShipManager() {

@@ -5,6 +5,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.metadata.FixedMetadataValue;
 
@@ -38,18 +39,11 @@ public class CommandListener implements CommandExecutor, TabCompleter {
                     player.setMetadata("center", new FixedMetadataValue(plugin, loc));
                 }
                 break;
-            case "convert":
-                plugin.getConverter().convert(sender instanceof Player player ? player : null);
-                break;
-            case "move":
-                plugin.getConverter().move(sender instanceof Player player ? player : null);
-                break;
-            case "single":
-                Player player = sender instanceof Player temp ? temp : null;
-                plugin.getPacketUtils().sendPacket(player.getLocation(), player.rayTraceBlocks(10).getHitBlock().getState());
-                break;
             case "multi":
                 plugin.getPacketUtils().multi((Player) sender);
+                break;
+            case "recreate":
+                plugin.getPacketUtils().recreateShip((ArmorStand) ((Player) sender).rayTraceEntities(10).getHitEntity());
                 break;
             default:
                 sender.sendMessage("Invalid command");
@@ -60,7 +54,7 @@ public class CommandListener implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        List<String> completions = List.of("pos1", "pos2" ,"center", "convert", "move");
+        List<String> completions = List.of("pos1", "pos2" ,"center", "multi", "recreate");
         return completions;
     }
 }

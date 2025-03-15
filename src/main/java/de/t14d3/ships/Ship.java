@@ -1,87 +1,90 @@
 package de.t14d3.ships;
 
+import io.papermc.paper.entity.TeleportFlag;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Shulker;
 import org.bukkit.event.player.PlayerTeleportEvent;
-import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.util.Transformation;
 import org.bukkit.util.Vector;
-import io.papermc.paper.entity.TeleportFlag;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
 public class Ship {
-    private final ArmorStand origin;
-    private List<ShipBlock> shipBlocks;
+    private ArmorStand origin;
+    private List<ShipBlock> shipBlocks = new ArrayList<>();
 
     private Vector velocity;
     private Vector vectorToRotate;
     private Quaternionf orientation;
+
     private Player controller;
 
     private List<Player> playersInShip = new ArrayList<>();
 
     public Ship(ArmorStand origin, List<ShipBlock> shipBlocks) {
-        NamespacedKey key = new NamespacedKey(Ships.getInstance(), "ship");
-        UUID uuid = origin.getUniqueId();
-        origin.getPersistentDataContainer().set(key, PersistentDataType.STRING, "SHIP-ORIGIN");
-        this.shipBlocks = shipBlocks;
-        for (ShipBlock shipBlock : shipBlocks) {
-            BlockDisplay blockDisplay = shipBlock.getBlockDisplay();
-            blockDisplay.getPersistentDataContainer().set(key, PersistentDataType.STRING, uuid.toString());
-            blockDisplay.setTeleportDuration(1);
-            blockDisplay.setInterpolationDelay(1);
-            blockDisplay.setInterpolationDuration(1);
-
-            Transformation transformation = new Transformation(
-                    new Vector3f(-0.5f, 0, -0.5f),
-                    blockDisplay.getTransformation().getLeftRotation(),
-                    blockDisplay.getTransformation().getScale(),
-                    blockDisplay.getTransformation().getRightRotation()
-            );
-            blockDisplay.setTransformation(transformation);
-
-        }
         this.origin = origin;
+        this.shipBlocks = shipBlocks;
+
         this.velocity = new Vector(0, 0, 0);
         this.vectorToRotate = new Vector(0, 0, 0);
         this.orientation = new Quaternionf();
     }
 
-    public List<ShipBlock> getShipBlocks() {
-        return shipBlocks;
+    public void rotate(Vector rotationVector) {
+        // Create the rotation quaternion based on the input vector
+        Quaternionf rotation = new Quaternionf();
+        rotation.rotateY((float) Math.toRadians(rotationVector.getY()));
+        rotation.rotateX((float) Math.toRadians(rotationVector.getX()));
+        rotation.rotateZ((float) Math.toRadians(rotationVector.getZ()));
+
+        // Update the ship's orientation
+        this.orientation.mul(rotation);
+
+        // Calculate new transformations for each block
+        for (ShipBlock shipBlock : shipBlocks) {
+            Vector3f originalOffset = shipBlock.getOffset();
+
+            // Rotate the original offset by the current orientation to get the new translation
+            Vector3f newTranslation = new Vector3f(originalOffset).rotate(this.orientation);
+
+            Ships.getInstance().getPacketUtils().sendEntityMetadataUpdate(shipBlock.getEntityId(), newTranslation, this.orientation, shipBlock.getLocation(this));
+            if (shipBlock.getFloor() != null) {
+                shipBlock.getFloor().teleportAsync(shipBlock.getLocation(this), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            }
+        }
     }
 
     public ArmorStand getOrigin() {
         return origin;
     }
 
-    public BlockDisplay getBlockDisplay(Shulker shulker) {
+    public ShipBlock getClosestBlock(Location location) {
+        double minDistance = Double.MAX_VALUE;
+        ShipBlock closestBlock = null;
         for (ShipBlock shipBlock : shipBlocks) {
-            if (shipBlock.getShulker() != null && shipBlock.getShulker().equals(shulker)) {
-                return shipBlock.getBlockDisplay();
+            double distance = location.distanceSquared(origin.getLocation().add(Vector.fromJOML(shipBlock.getOffset())));
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestBlock = shipBlock;
             }
         }
-        return null;
+        return closestBlock;
     }
 
     public void moveTo(Location newLocation) {
         origin.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         for (ShipBlock shipBlock : shipBlocks) {
-            Vector offset = shipBlock.getOffset();
-            Location dest = newLocation.clone().add(offset);
-            if (shipBlock.getShulker() != null) {
-                shipBlock.getShulker().teleportAsync(dest, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            if (shipBlock.getSeat() != null) {
+                shipBlock.getSeat().teleportAsync(
+                        newLocation.add(shipBlock.getSeat().getLocation().subtract(origin.getLocation())),
+                        PlayerTeleportEvent.TeleportCause.PLUGIN,
+                        TeleportFlag.EntityState.RETAIN_PASSENGERS);
             }
-            shipBlock.getBlockDisplay().teleport(dest, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
     }
 
@@ -95,21 +98,6 @@ public class Ship {
 
     public Vector getVector() {
         return velocity;
-    }
-
-    public void setOrientation(Vector orientation) {
-        Quaternionf targetOrientation = new Quaternionf();
-        targetOrientation.rotateY((float) Math.toRadians(orientation.getX()));
-        targetOrientation.rotateX((float) Math.toRadians(orientation.getY()));
-        targetOrientation.rotateZ((float) Math.toRadians(orientation.getZ()));
-
-        while (this.orientation.dot(targetOrientation) < 0) {
-            Vector deltaEulerAngles = new Vector(0, 0, 0);
-            deltaEulerAngles.setX(Math.signum(targetOrientation.x()) * Math.PI);
-            deltaEulerAngles.setY(Math.signum(targetOrientation.y()) * Math.PI);
-            deltaEulerAngles.setZ(Math.signum(targetOrientation.z()) * Math.PI);
-            this.rotate(deltaEulerAngles);
-        }
     }
 
     public Quaternionf getOrientation() {
@@ -132,10 +120,6 @@ public class Ship {
         return controller;
     }
 
-    protected void addShipBlocks(List<ShipBlock> shipBlocks) {
-        this.shipBlocks.addAll(shipBlocks);
-    }
-
     public void addPlayer(Player player) {
         this.playersInShip.add(player);
     }
@@ -152,63 +136,16 @@ public class Ship {
         return playersInShip.contains(player);
     }
 
-    public void rotate(Vector deltaEulerAngles) {
-        // Convert delta Euler angles (degrees) to radians
-        float pitchRad = (float) Math.toRadians(deltaEulerAngles.getX());
-        float yawRad = (float) Math.toRadians(deltaEulerAngles.getY());
-        float rollRad = (float) Math.toRadians(deltaEulerAngles.getZ());
+    public List<ShipBlock> getShipBlocks() {
+        return shipBlocks;
+    }
 
-        // Create a delta quaternion from the rotation angles
-        Quaternionf deltaQuat = new Quaternionf()
-                .rotateY(yawRad)    // Yaw around Y-axis
-                .rotateX(pitchRad) // Pitch around X-axis
-                .rotateZ(rollRad); // Roll around Z-axis
-
-        // Update the ship's cumulative orientation
-        orientation.mul(deltaQuat); // Multiply delta into current orientation
-
-        // Rotate each BlockDisplay
+    public ShipBlock getFloorBlock(Player player) {
         for (ShipBlock shipBlock : shipBlocks) {
-            BlockDisplay blockDisplay = shipBlock.getBlockDisplay();
-            Transformation oldTransformation = blockDisplay.getTransformation();
-            Vector3f translation = new Vector3f(oldTransformation.getTranslation());
-
-            // Apply delta rotation to the BlockDisplay's translation (relative to origin)
-            translation.rotate(deltaQuat);
-
-            // Create new transformation with updated translation and cumulative rotation
-            Transformation newTransformation = new Transformation(
-                    translation,
-                    new Quaternionf(orientation), // Use accumulated orientation
-                    oldTransformation.getScale(),
-                    new Quaternionf()
-            );
-            blockDisplay.setTransformation(newTransformation);
-        }
-
-        // Update Shulker offsets relative to the origin
-        Location originLocation = origin.getLocation();
-        for (ShipBlock shipBlock : shipBlocks) {
-            Vector originalOffset = shipBlock.getOffset();
-            Vector3f offset3f = new Vector3f(
-                    (float) originalOffset.getX(),
-                    (float) originalOffset.getY(),
-                    (float) originalOffset.getZ()
-            );
-
-            // Apply delta rotation to the Shulker's offset
-            offset3f.rotate(deltaQuat);
-            Vector rotatedOffset = new Vector(offset3f.x, offset3f.y, offset3f.z);
-            shipBlock.setOffset(rotatedOffset);
-
-            // Teleport Shulker to new position
-            Shulker shulker = shipBlock.getShulker();
-            Location newLocation = originLocation.clone()
-                    .add(rotatedOffset);
-            if (shulker != null) {
-                shulker.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+            if (shipBlock.getFloor() != null && shipBlock.getFloor().getLocation().distanceSquared(player.getLocation()) < 1) {
+                return shipBlock;
             }
-            shipBlock.getBlockDisplay().teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         }
+        return null;
     }
 }

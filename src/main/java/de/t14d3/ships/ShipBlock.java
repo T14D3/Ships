@@ -1,37 +1,77 @@
 package de.t14d3.ships;
 
+import org.bukkit.Location;
+import org.bukkit.block.BlockState;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Shulker;
 import org.bukkit.util.Vector;
+import org.joml.Vector3f;
 
 public class ShipBlock {
-    private final BlockDisplay blockDisplay;
-    private Shulker shulker;
-    private Vector offset;
+    private int entityId;
+    private Vector3f offset;
+    private BlockState state;
 
-    public ShipBlock(BlockDisplay blockDisplay, Shulker shulker, Vector offset) {
-        this.blockDisplay = blockDisplay;
-        this.shulker = shulker;
+    private ArmorStand seat;
+    private Shulker floor;
+
+    public ShipBlock(Vector3f offset, int entityId, BlockState state) {
+        this.entityId = entityId;
         this.offset = offset;
+        this.state = state;
+        this.seat = null;
+        this.floor = null;
     }
 
-    public BlockDisplay getBlockDisplay() {
-        return blockDisplay;
+    public ShipBlock(Vector3f offset, int entityId, BlockState state, ArmorStand seat) {
+        this.entityId = entityId;
+        this.offset = offset;
+        this.state = state;
+        this.seat = seat;
+        this.floor = null;
     }
 
-    public Shulker getShulker() {
-        return shulker;
+    public ShipBlock(Vector3f offset, int entityId, BlockState state, Shulker floor) {
+        this.entityId = entityId;
+        this.offset = offset;
+        this.state = state;
+        this.seat = null;
+        this.floor = floor;
     }
 
-    public Vector getOffset() {
+    public ArmorStand getSeat() {
+        if (seat != null && !seat.isValid()) {
+            seat = null;
+        }
+        return seat;
+    }
+
+    public void setSeat(ArmorStand seat) {
+        this.seat = seat;
+    }
+
+    public Vector3f getOffset() {
         return offset;
     }
 
-    public void setOffset(Vector offset) {
-        this.offset = offset;
+    public Location getLocation(Ship ship) {
+        return ship.getOrigin().getLocation().add(Vector.fromJOML(offset)).add(0, 2, 0);
     }
 
-    public void setShulker(Shulker shulker) {
-        this.shulker = shulker;
+    public int getEntityId() {
+        return entityId;
+    }
+
+    public BlockState getState() {
+        return state;
+    }
+
+    public Shulker getFloor() {
+        return floor;
+    }
+
+    public void setFloor(Shulker floor) {
+        this.floor = floor;
     }
 }

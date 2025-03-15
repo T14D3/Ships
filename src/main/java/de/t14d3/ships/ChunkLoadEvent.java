@@ -39,8 +39,6 @@ public class ChunkLoadEvent implements Listener {
 
                         UUID shipUuid = armorStand.getUniqueId();
 
-                        List<ShipBlock> shipBlocks = new ArrayList<>();
-
                         List<Entity> nearbyEntities;
 
                         try {
@@ -64,21 +62,15 @@ public class ChunkLoadEvent implements Listener {
                                 } catch (InterruptedException | ExecutionException e) {
                                     throw new RuntimeException(e);
                                 }
-                                if (shulker != null) {
-                                    shipBlocks.add(new ShipBlock(display, shulker, offset));
-                                }
                             }
                         }
 
                         plugin.getLogger().info("Ship UUID: " + shipUuid);
-                        plugin.getLogger().info("Ship Blocks: " + shipBlocks.size());
 
                         Ship ship = plugin.getShipManager().getShip(shipUuid);
                         if (ship == null) {
-                            ship = new Ship(armorStand, shipBlocks);
+                            ship = new Ship(armorStand, null);
                             plugin.getShipManager().addShip(ship);
-                        } else {
-                            ship.addShipBlocks(shipBlocks);
                         }
                     }
                 }

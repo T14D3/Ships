@@ -8,19 +8,17 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 public class ShipManager {
-    private final Map<UUID, Ship> ships = new HashMap<>();
+    private final List<Ship> ships = new ArrayList<>();
     private BukkitTask tickTask;
 
     public ShipManager(Ships plugin) {
         tickTask = new BukkitRunnable() {
             @Override
             public void run() {
-                for (Ship ship : ships.values()) {
+                for (Ship ship : ships) {
                     if (!ship.getVector().isZero()) {
                         ship.move(ship.getVector());
                     }
@@ -33,39 +31,17 @@ public class ShipManager {
     }
 
     public void addShip(Ship ship) {
-        ships.put(ship.getOrigin().getUniqueId(), ship);
+        ships.add(ship);
     }
 
     public Ship getShip(UUID markerUuid) {
-        return ships.get(markerUuid);
+        return ships.stream().filter(ship -> ship.getOrigin().getUniqueId() == markerUuid).findFirst().orElse(null);
     }
 
-    public Ship getNearestShip(Location location) {
-        Ship nearestShip = null;
-        double nearestDistance = Double.MAX_VALUE;
-        for (Ship ship : ships.values()) {
-            double distance = ship.getOrigin().getLocation().distance(location);
-            if (distance < nearestDistance) {
-                nearestDistance = distance;
-                nearestShip = ship;
-            }
-        }
-        return nearestShip;
-    }
 
-    public void removeShip(UUID markerUuid) { 
-        Ship ship = ships.remove(markerUuid); 
-        if (ship != null) { 
-            ship.getOrigin().remove(); 
-            ship.getShipBlocks().forEach(shipBlock -> { 
-                shipBlock.getBlockDisplay().remove(); 
-                shipBlock.getShulker().remove(); 
-            }); 
-        } 
-    }
 
     public Ship getControlledBy(Player player) {
-        for (Ship ship : ships.values()) {
+        for (Ship ship : ships) {
             if (ship.getController() == player) {
                 return ship;
             }
