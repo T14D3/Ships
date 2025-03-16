@@ -53,9 +53,6 @@ public class Ship {
             Vector3f newTranslation = new Vector3f(originalOffset).rotate(this.orientation);
 
             Ships.getInstance().getPacketUtils().sendEntityMetadataUpdate(shipBlock.getEntityId(), newTranslation, this.orientation, shipBlock.getLocation(this));
-            if (shipBlock.getFloor() != null) {
-                shipBlock.getFloor().teleportAsync(shipBlock.getLocation(this), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
-            }
         }
     }
 
@@ -147,5 +144,13 @@ public class Ship {
             }
         }
         return null;
+    }
+
+    public int[] getEntityIds() {
+        int[] entityIds = new int[shipBlocks.size()];
+        for (int i = 0; i < shipBlocks.size(); i++) {
+            entityIds[i] = shipBlocks.get(i).getEntityId();
+        }
+        return entityIds;
     }
 }

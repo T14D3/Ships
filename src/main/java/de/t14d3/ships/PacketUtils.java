@@ -12,13 +12,14 @@ import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import it.unimi.dsi.fastutil.ints.IntArrayList;
+import it.unimi.dsi.fastutil.ints.IntList;
 import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.NamespacedKey;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
 import org.bukkit.craftbukkit.block.CraftBlockState;
@@ -32,17 +33,17 @@ import org.joml.Vector3f;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static de.t14d3.ships.ShipManager.shipDataKey;
+
 public class PacketUtils {
     private final ProtocolManager protocolManager;
     private final FieldAccessor entityId = Accessors.getFieldAccessor(Entity.class, AtomicInteger.class, true);
 
     private final Ships plugin;
-    private final NamespacedKey shipKey;
 
     public PacketUtils(Ships plugin) {
         this.protocolManager = ProtocolLibrary.getProtocolManager();
         this.plugin = plugin;
-        this.shipKey = new NamespacedKey(plugin, "ship");
     }
 
     private int nextId() {
@@ -63,8 +64,6 @@ public class PacketUtils {
                 new WrappedDataValue(11, WrappedDataWatcher.Registry.get(Vector3f.class), translation)
         ));
         data.getIntegers().write(0, entityId);
-
-        plugin.getServer().broadcast(Component.text(data.getHandle().toString()));
 
         protocolManager.broadcastServerPacket(spawn, location, 50);
         protocolManager.broadcastServerPacket(data, location, 50);
@@ -125,21 +124,20 @@ public class PacketUtils {
             shipBlocks.add(new ShipBlock(translation, entityIds[i], block.getState()));
             i++;
         }
-        plugin.getServer().broadcast(Component.text(shipData.toString()));
-        armorStand.getPersistentDataContainer().set(shipKey, PersistentDataType.STRING, shipData.toString());
+        armorStand.getPersistentDataContainer().set(shipDataKey, PersistentDataType.STRING, shipData.toString());
         passenger.getIntegerArrays().write(0, entityIds);
 
         plugin.getShipManager().addShip(new Ship(armorStand, shipBlocks));
 
         protocolManager.broadcastServerPacket(passenger, player.getLocation(), 50);
-
-        Bukkit.getScheduler().runTaskLater(Ships.getInstance(), () -> {
-            sendTeleportPacket(entityId, player.getLocation());
-        }, 20L);
+    }
+    public Ship recreateShip(ArmorStand armorStand) {
+        return recreateShip(armorStand, null);
     }
 
-    public Ship recreateShip(ArmorStand armorStand) {
-        String temp = armorStand.getPersistentDataContainer().get(shipKey, PersistentDataType.STRING);
+    public Ship recreateShip(ArmorStand armorStand, Player player) {
+        armorStand.setRotation(0, 0);
+        String temp = armorStand.getPersistentDataContainer().get(shipDataKey, PersistentDataType.STRING);
         assert temp != null;
         JsonObject shipData = JsonParser.parseString(temp).getAsJsonObject();
         List<ShipBlock> blocks = new ArrayList<>();
@@ -160,7 +158,11 @@ public class PacketUtils {
         PacketContainer passenger = protocolManager.createPacket(PacketType.Play.Server.MOUNT);
         passenger.getIntegers().write(0, armorStand.getEntityId());
         passenger.getIntegerArrays().write(0, entityIds);
-        protocolManager.broadcastServerPacket(passenger, armorStand.getLocation(), 50);
+        if (player != null) {
+            protocolManager.sendServerPacket(player, passenger);
+        } else {
+            protocolManager.broadcastServerPacket(passenger, armorStand.getLocation(), 50);
+        }
 
         Ship ship = new Ship(armorStand, blocks);
         plugin.getShipManager().addShip(ship);
@@ -177,6 +179,21 @@ public class PacketUtils {
         protocolManager.broadcastServerPacket(packet, location, 50);
     }
 
+    public void sendMountPacket(ArmorStand armorStand, int[] passengers) {
+        sendMountPacket(armorStand, passengers, null);
+    }
+
+    public void sendMountPacket(ArmorStand armorStand, int[] passengers, Player player) {
+        PacketContainer packet = protocolManager.createPacket(PacketType.Play.Server.MOUNT);
+        packet.getIntegers().write(0, armorStand.getEntityId());
+        packet.getIntegerArrays().write(0, passengers);
+        if (player != null) {
+            protocolManager.sendServerPacket(player, packet);
+        } else {
+            protocolManager.broadcastServerPacket(packet, armorStand.getLocation(), 50);
+        }
+    }
+
     public void sendEntityMetadataUpdate(int entityId, Vector3f translation, Quaternionf rotation, Location location) {
         PacketContainer data = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
         data.getDataValueCollectionModifier().write(0, Arrays.asList(
@@ -185,5 +202,12 @@ public class PacketUtils {
         ));
         data.getIntegers().write(0, entityId);
         protocolManager.broadcastServerPacket(data, location, 50);
+    }
+
+    public void removeEntities(int[] entityIds) {
+        PacketContainer packet = protocolManager.createPacket(PacketType.Play.Server.ENTITY_DESTROY);
+        IntList intList = new IntArrayList(entityIds);
+        packet.getStructures().write(0, InternalStructure.getConverter().getSpecific(intList));
+        protocolManager.broadcastServerPacket(packet);
     }
 }

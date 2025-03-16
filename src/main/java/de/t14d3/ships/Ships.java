@@ -11,7 +11,7 @@ import org.bukkit.scoreboard.Team;
 public final class Ships extends JavaPlugin {
     private static Ships instance;
     private CommandListener commandListener;
-    private DeathListener deathListener;
+    private ShipPickupListeners shipPickupListeners;
     private InteractListener interactListener;
     private ShipManager shipManager;
     private ChunkLoadEvent chunkLoadEvent;
@@ -33,15 +33,18 @@ public final class Ships extends JavaPlugin {
         commandListener = new CommandListener();
         getCommand("ships").setExecutor(commandListener);
         getCommand("ships").setTabCompleter(commandListener);
-        deathListener = new DeathListener(this);
-        getServer().getPluginManager().registerEvents(deathListener, this);
+        shipPickupListeners = new ShipPickupListeners(this);
+        getServer().getPluginManager().registerEvents(shipPickupListeners, this);
         interactListener = new InteractListener(this);
         getServer().getPluginManager().registerEvents(interactListener, this);
         chunkLoadEvent = new ChunkLoadEvent(this);
         getServer().getPluginManager().registerEvents(chunkLoadEvent, this);
 
+        getServer().getPluginManager().registerEvents(new ServerTickListener(this), this);
+
         shipManager = new ShipManager(this);
         moveListener = new MoveListener(this);
+        getServer().getPluginManager().registerEvents(moveListener, this);
 
         packetUtils = new PacketUtils(this);
 

@@ -10,12 +10,10 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 import java.util.Objects;
-import java.util.UUID;
 
 public class InteractListener implements Listener {
     private final Ships plugin;
@@ -49,6 +47,14 @@ public class InteractListener implements Listener {
                     }
                 }
             }
+        } else if (event.getRightClicked() instanceof Shulker shulker) {
+            Ship ship = plugin.getShipManager().getShipFromShulker(shulker).join();
+            if (ship != null) {
+                if (ship.getController() == null) {
+                    ship.setController(event.getPlayer());
+                }
+                shulker.addPassenger(event.getPlayer());
+            }
         }
     }
 
@@ -60,11 +66,11 @@ public class InteractListener implements Listener {
                 ship.setVector(new Vector(0, 0, 0));
                 ship.setVectorToRotate(new Vector(0, 0, 0));
                 ship.setController(null);
-                if (event.getDismounted() instanceof ArmorStand seat) {
-                    if (Objects.equals(seat.customName(), Component.text("Seat"))) {
-                        seat.remove();
-                        player.teleportAsync(player.getLocation().add(0, 1, 0));
-                    }
+            }
+            if (event.getDismounted() instanceof ArmorStand seat) {
+                if (Objects.equals(seat.customName(), Component.text("Seat"))) {
+                    seat.remove();
+                    player.teleportAsync(player.getLocation().add(0, 1, 0));
                 }
             }
         }

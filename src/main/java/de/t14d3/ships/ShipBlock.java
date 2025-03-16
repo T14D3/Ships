@@ -14,7 +14,9 @@ public class ShipBlock {
     private BlockState state;
 
     private ArmorStand seat;
-    private Shulker floor;
+    private ArmorStand floor;
+
+    private Ship ship;
 
     public ShipBlock(Vector3f offset, int entityId, BlockState state) {
         this.entityId = entityId;
@@ -22,22 +24,6 @@ public class ShipBlock {
         this.state = state;
         this.seat = null;
         this.floor = null;
-    }
-
-    public ShipBlock(Vector3f offset, int entityId, BlockState state, ArmorStand seat) {
-        this.entityId = entityId;
-        this.offset = offset;
-        this.state = state;
-        this.seat = seat;
-        this.floor = null;
-    }
-
-    public ShipBlock(Vector3f offset, int entityId, BlockState state, Shulker floor) {
-        this.entityId = entityId;
-        this.offset = offset;
-        this.state = state;
-        this.seat = null;
-        this.floor = floor;
     }
 
     public ArmorStand getSeat() {
@@ -67,11 +53,19 @@ public class ShipBlock {
         return state;
     }
 
-    public Shulker getFloor() {
+    public ArmorStand getFloor() {
         return floor;
     }
 
-    public void setFloor(Shulker floor) {
+    public void setFloor(ArmorStand floor) {
         this.floor = floor;
+    }
+
+    public void setShip(Ship ship) {
+        this.ship = ship;
+    }
+
+    public Ship getShip() {
+        return ship;
     }
 }

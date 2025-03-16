@@ -5,10 +5,14 @@ import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.events.ListenerPriority;
 import com.comphenix.protocol.events.PacketAdapter;
 import com.comphenix.protocol.events.PacketEvent;
+import io.papermc.paper.event.player.PlayerTrackEntityEvent;
 import net.minecraft.world.entity.player.Input;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import com.comphenix.protocol.ProtocolManager;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
 
 public class MoveListener implements Listener {
@@ -59,6 +63,24 @@ public class MoveListener implements Listener {
             }
 
         });
+    }
+
+    @EventHandler
+    public void onLoad(PlayerTrackEntityEvent event) {
+        if (event.getEntity() instanceof ArmorStand armorStand) {
+            if (armorStand.getPersistentDataContainer().has(ShipManager.shipDataKey, PersistentDataType.STRING)) {
+                Ship ship = thisplugin.getShipManager().getShip(armorStand.getUniqueId());
+                if (ship != null) {
+                    int[] entityIds = new int[ship.getShipBlocks().size()];
+                    for (int i = 0; i < ship.getShipBlocks().size(); i++) {
+                        entityIds[i] = ship.getShipBlocks().get(i).getEntityId();
+                    }
+                    thisplugin.getServer().getScheduler().runTaskLater(thisplugin, () -> {
+                        thisplugin.getPacketUtils().sendMountPacket(armorStand, entityIds, event.getPlayer());
+                    }, 10L);
+                }
+            }
+        }
     }
 
 }
