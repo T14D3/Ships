@@ -14,6 +14,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
@@ -72,13 +73,24 @@ public class InteractListener implements Listener {
 
     @EventHandler
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getClickedBlock() != null && event.getItem() != null) {
+        if (event.getHand() != EquipmentSlot.HAND) {
+            return;
+        }
+        if (event.getItem() != null) {
             if (event.getItem().getType() == Material.PAPER) {
-                List<Block> blocks = CompletableFuture.supplyAsync(()
-                        -> plugin.getConverter().getConnectedBlocks(event.getClickedBlock(), 20)).join();
-                if (!blocks.isEmpty()) {
-                    plugin.getPacketUtils().createFromBlocklist(blocks, event.getClickedBlock().getLocation());
-                    blocks.forEach(block -> block.setType(Material.AIR));
+                if (event.getClickedBlock() != null) {
+                    if (!event.getPlayer().isSneaking()) {
+                        List<Block> blocks = CompletableFuture.supplyAsync(()
+                                -> plugin.getConverter().getConnectedBlocks(event.getClickedBlock(), 20)).join();
+                        if (!blocks.isEmpty()) {
+                            plugin.getPacketUtils().highlightBlocks(event.getPlayer(), blocks);
+                        }
+                    }
+                } else {
+                    plugin.getPacketUtils().removeEntities(event.getPlayer());
+                }
+                if (event.getPlayer().isSneaking() && event.getClickedBlock() != null) {
+                    plugin.getPacketUtils().createFromBlocklist(event.getPlayer(), event.getClickedBlock().getLocation());
                 }
             }
         }

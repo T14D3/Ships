@@ -9,6 +9,7 @@ import com.comphenix.protocol.reflect.accessors.Accessors;
 import com.comphenix.protocol.reflect.accessors.FieldAccessor;
 import com.comphenix.protocol.wrappers.WrappedDataValue;
 import com.comphenix.protocol.wrappers.WrappedDataWatcher;
+import com.comphenix.protocol.wrappers.WrappedWatchableObject;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
@@ -19,15 +20,20 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Bukkit;
+import org.bukkit.Effect;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockState;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.craftbukkit.block.CraftBlockState;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -40,7 +46,10 @@ public class PacketUtils {
     private final ProtocolManager protocolManager;
     private final FieldAccessor entityId = Accessors.getFieldAccessor(Entity.class, AtomicInteger.class, true);
 
+    private Map<Player, PlayerSelection> playerSelections = new HashMap<>();
+
     private final Ships plugin;
+    private static final BlockData AIR = Bukkit.createBlockData(Material.AIR);
 
     public PacketUtils(Ships plugin) {
         this.protocolManager = ProtocolLibrary.getProtocolManager();
@@ -70,6 +79,18 @@ public class PacketUtils {
         protocolManager.broadcastServerPacket(data, location, 50);
 
         return entityId;
+    }
+
+    public void createFromBlocklist(Player player, Location center) {
+        PlayerSelection selection = playerSelections.get(player);
+        if (selection == null) {
+            return;
+        }
+        for (Block block : selection.getBlocks()) {
+            block.setBlockData(AIR, false);
+        }
+        createFromBlocklist(List.copyOf(selection.getBlocks()), center);
+        removeEntities(player);
     }
 
     public void createFromBlocklist(List<Block> blocks, Location center) {
@@ -184,10 +205,101 @@ public class PacketUtils {
         protocolManager.broadcastServerPacket(data, location, 50);
     }
 
+    public void removeEntities(Player player) {
+        PlayerSelection selection = playerSelections.get(player);
+        if (selection == null) {
+            return;
+        }
+        int[] entityIds = new int[selection.getEntityIds().size()];
+        for (int i = 0; i < selection.getEntityIds().size(); i++) {
+            entityIds[i] = selection.getEntityIds().get(i);
+        }
+        removeEntities(entityIds);
+        playerSelections.remove(player);
+    }
+
     public void removeEntities(int[] entityIds) {
         PacketContainer packet = protocolManager.createPacket(PacketType.Play.Server.ENTITY_DESTROY);
         IntList intList = new IntArrayList(entityIds);
         packet.getStructures().write(0, InternalStructure.getConverter().getSpecific(intList));
         protocolManager.broadcastServerPacket(packet);
+    }
+
+    public void highlightBlocks(Player player, List<Block> blocks) {
+        PlayerSelection selection = playerSelections.computeIfAbsent(player, p -> new PlayerSelection(new HashSet<>(), new ArrayList<>()));
+        for (Block block : blocks) {
+            if (selection.blocks.contains(block)) {
+                continue;
+            }
+            final int entityId = nextId();
+            // Create the SPAWN_ENTITY packet for the BLOCK_DISPLAY
+            PacketContainer spawn = protocolManager.createPacket(PacketType.Play.Server.SPAWN_ENTITY);
+            spawn.getEntityTypeModifier().write(0, EntityType.BLOCK_DISPLAY);
+            spawn.getUUIDs().write(0, UUID.randomUUID());
+            spawn.getIntegers().write(0, entityId);
+
+            spawn.getDoubles().write(0, block.getX() + 0.001);
+            spawn.getDoubles().write(1,  block.getY() + 0.001);
+            spawn.getDoubles().write(2,  block.getZ() + 0.001);
+
+            // Create the ENTITY_METADATA packet to enable glowing
+            PacketContainer metadata = protocolManager.createPacket(PacketType.Play.Server.ENTITY_METADATA);
+            metadata.getIntegers().write(0, entityId);
+
+            // Set up the DataWatcher to make the entity glow
+            WrappedDataWatcher watcher = new WrappedDataWatcher();
+            watcher.setObject(new WrappedDataWatcher.WrappedDataWatcherObject(0, WrappedDataWatcher.Registry.get(Byte.class)), (byte) 0x60);
+
+            // Convert the DataWatcher entries to WrappedDataValues
+            List<WrappedDataValue> dataValues = new ArrayList<>();
+            for (WrappedWatchableObject entry : watcher.getWatchableObjects()) {
+                if (entry != null) {
+                    WrappedDataWatcher.WrappedDataWatcherObject obj = entry.getWatcherObject();
+                    dataValues.add(new WrappedDataValue(
+                            obj.getIndex(),
+                            obj.getSerializer(),
+                            entry.getRawValue()
+                    ));
+                }
+            }
+            dataValues.add(new WrappedDataValue(23, WrappedDataWatcher.Registry.getBlockDataSerializer(false), ((CraftBlockState) block.getState()).getHandle()));
+            dataValues.add(new WrappedDataValue(12, WrappedDataWatcher.Registry.get(Vector3f.class), new Vector3f(0.998f, 0.998f, 0.998f)));
+
+            // Apply the data values to the metadata packet
+            metadata.getDataValueCollectionModifier().write(0, dataValues);
+
+            // Send the packets to the player
+            protocolManager.sendServerPacket(player, spawn);
+            protocolManager.sendServerPacket(player, metadata);
+
+            selection.addBlock(block);
+            selection.addEntityId(entityId);
+        }
+    }
+
+    static class PlayerSelection {
+        private final Set<Block> blocks;
+        private final List<Integer> entityIds;
+
+        public PlayerSelection(Set<Block> blocks, List<Integer> entityIds) {
+            this.blocks = blocks;
+            this.entityIds = entityIds;
+        }
+
+        public Set<Block> getBlocks() {
+            return blocks;
+        }
+
+        public List<Integer> getEntityIds() {
+            return entityIds;
+        }
+
+        public void addBlock(Block block) {
+            blocks.add(block);
+        }
+
+        public void addEntityId(int entityId) {
+            entityIds.add(entityId);
+        }
     }
 }
