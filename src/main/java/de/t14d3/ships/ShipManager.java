@@ -161,6 +161,23 @@ public class ShipManager {
     }
 
     public void removeShip(UUID uuid) {
-        ships.removeIf(ship -> ship.getOrigin().getUniqueId() == uuid);
+        Ship target = ships.stream().filter(ship -> ship.getOrigin().getUniqueId() == uuid).findFirst().orElse(null);
+        if (target != null) {
+            removeShip(target);
+        }
+    }
+    public void removeShip(Ship ship) {
+        ship.getShipBlocks().forEach(shipBlock -> {
+            if (shipBlock.getFloor() != null) {
+                shipBlock.getFloor().getPassengers().forEach(Entity::remove);
+                shipBlock.getFloor().remove();
+                shipBlock.setFloor(null);
+            }
+        });
+        plugin.getPacketUtils().removeEntities(ship.getEntityIds());
+        if (ship.getOrigin() != null && ship.getOrigin().isValid()) {
+            ship.getOrigin().remove();
+        }
+        ships.remove(ship);
     }
 }

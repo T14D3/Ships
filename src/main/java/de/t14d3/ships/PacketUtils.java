@@ -12,9 +12,9 @@ import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import io.papermc.paper.entity.TeleportFlag;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
-import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.phys.Vec3;
@@ -26,6 +26,7 @@ import org.bukkit.craftbukkit.block.CraftBlockState;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
+import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.persistence.PersistentDataType;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -71,40 +72,20 @@ public class PacketUtils {
         return entityId;
     }
 
-    public void multi(Player player) {
-        ArmorStand armorStand = (ArmorStand) player.getWorld().spawnEntity(player.getLocation(), EntityType.ARMOR_STAND);
+    public void createFromBlocklist(List<Block> blocks, Location center) {
+
+        ArmorStand armorStand = (ArmorStand) center.getWorld().spawnEntity(center.clone().subtract(0, 2, 0), EntityType.ARMOR_STAND);
+
+        center = center.add(0.5, 0, 0.5);
+
+        armorStand.setGravity(false);
+        armorStand.setInvulnerable(true);
+        armorStand.setInvisible(true);
         int entityId = armorStand.getEntityId();
 
         PacketContainer passenger = protocolManager.createPacket(PacketType.Play.Server.MOUNT);
         passenger.getIntegers().write(0, entityId);
 
-        List<Block> blocks = new ArrayList<>();
-        Location pos1 = (Location) player.getMetadata("pos1").get(0).value();
-        Location pos2 = (Location) player.getMetadata("pos2").get(0).value();
-
-        Location min = new Location(player.getWorld(),
-                Math.min(pos1.getX(), pos2.getX()),
-                Math.min(pos1.getY(), pos2.getY()),
-                Math.min(pos1.getZ(), pos2.getZ()));
-        Location max = new Location(player.getWorld(),
-                Math.max(pos1.getX(), pos2.getX()),
-                Math.max(pos1.getY(), pos2.getY()),
-                Math.max(pos1.getZ(), pos2.getZ()));
-        Location center = new Location(player.getWorld(),
-                (min.getX() + max.getX()) / 2,
-                (min.getY() + max.getY()) / 2,
-                (min.getZ() + max.getZ()) / 2);
-
-        for (int x = min.getBlockX(); x <= max.getBlockX(); x++) {
-            for (int y = min.getBlockY(); y <= max.getBlockY(); y++) {
-                for (int z = min.getBlockZ(); z <= max.getBlockZ(); z++) {
-                    Block block = min.getWorld().getBlockAt(x, y, z);
-                    if (!block.getType().isAir()) {
-                        blocks.add(block);
-                    }
-                }
-            }
-        }
 
         int[] entityIds = new int[blocks.size()];
         List<ShipBlock> shipBlocks = new ArrayList<>();
@@ -129,7 +110,7 @@ public class PacketUtils {
 
         plugin.getShipManager().addShip(new Ship(armorStand, shipBlocks));
 
-        protocolManager.broadcastServerPacket(passenger, player.getLocation(), 50);
+        protocolManager.broadcastServerPacket(passenger, center, 50);
     }
     public Ship recreateShip(ArmorStand armorStand) {
         return recreateShip(armorStand, null);
@@ -137,6 +118,7 @@ public class PacketUtils {
 
     public Ship recreateShip(ArmorStand armorStand, Player player) {
         armorStand.setRotation(0, 0);
+        armorStand.teleportAsync(armorStand.getLocation().subtract(0, 2, 0), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         String temp = armorStand.getPersistentDataContainer().get(shipDataKey, PersistentDataType.STRING);
         assert temp != null;
         JsonObject shipData = JsonParser.parseString(temp).getAsJsonObject();
@@ -145,10 +127,11 @@ public class PacketUtils {
         for (Map.Entry<String, JsonElement> element : shipData.entrySet()) {
             JsonObject block = element.getValue().getAsJsonObject();
             Vector3f translation = new Vector3f();
-            String[] translationParts = block.get("translation").getAsString().replace('(', ' ').replace(')', ' ').trim().split(" ");
+            String[] translationParts = block.get("translation").getAsString().replace('(', ' ').replace(')', ' ').trim().split("\\s+");
+            plugin.getLogger().info(block.get("translation").getAsString());
             translation.x = Float.parseFloat(translationParts[0]);
-            translation.y = Float.parseFloat(translationParts[2]);
-            translation.z = Float.parseFloat(translationParts[3]);
+            translation.y = Float.parseFloat(translationParts[1]);
+            translation.z = Float.parseFloat(translationParts[2]);
             BlockState state = Bukkit.createBlockData(block.get("state").getAsString()).createBlockState();
             int entityId = sendPacket(armorStand.getLocation(), state, translation);
             blocks.add(new ShipBlock(translation, entityId, state));
@@ -166,9 +149,6 @@ public class PacketUtils {
 
         Ship ship = new Ship(armorStand, blocks);
         plugin.getShipManager().addShip(ship);
-
-        armorStand.setGravity(false);
-
         return ship;
     }
 

@@ -1,9 +1,11 @@
 package de.t14d3.ships;
 
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityPlaceEvent;
 import org.bukkit.inventory.ItemStack;
@@ -22,26 +24,12 @@ public class ShipPickupListeners implements Listener {
         if (event.getEntity() instanceof ArmorStand armorStand) {
             if (armorStand.getPersistentDataContainer().has(ShipManager.shipDataKey, PersistentDataType.STRING)) {
                 event.getDrops().clear();
-                ItemStack item = new ItemStack(Material.ARMOR_STAND);
-                ItemMeta meta = item.getItemMeta();
-                //noinspection ConstantConditions
-                meta.getPersistentDataContainer().set(ShipManager.shipDataKey, PersistentDataType.STRING,
-                        armorStand.getPersistentDataContainer().get(ShipManager.shipDataKey, PersistentDataType.STRING));
-                item.setItemMeta(meta);
-                event.getEntity().getWorld().dropItem(event.getEntity().getLocation(), item);
                 Ship ship = plugin.getShipManager().getShip(armorStand.getUniqueId());
                 if (ship == null) {
                     plugin.getLogger().warning("Tried removing ship that doesn't exist: " + armorStand.getUniqueId());
                     return;
                 }
-                ship.getShipBlocks().forEach(shipBlock -> {
-                    if (shipBlock.getFloor() != null) {
-                        shipBlock.getFloor().getPassengers().forEach(Entity::remove);
-                        shipBlock.getFloor().remove();
-                        shipBlock.setFloor(null);
-                    }
-                });
-                plugin.getPacketUtils().removeEntities(ship.getEntityIds());
+                createItemDrop(ship, event.getEntity().getLocation());
                 plugin.getShipManager().removeShip(armorStand.getUniqueId());
             }
         }
@@ -68,5 +56,27 @@ public class ShipPickupListeners implements Listener {
             }
 
         }
+    }
+
+    @EventHandler
+    public void onEntityHurt(EntityDamageEvent event) {
+        if (event.getEntity() instanceof Shulker shulker) {
+            Ship ship = plugin.getShipManager().getShipFromShulker(shulker).join();
+            if (ship != null) {
+                event.setCancelled(true);
+                createItemDrop(ship, event.getEntity().getLocation());
+                plugin.getShipManager().removeShip(ship);
+            }
+        }
+    }
+
+    private static void createItemDrop(Ship ship, Location dropLocation) {
+        ItemStack item = new ItemStack(Material.ARMOR_STAND);
+        ItemMeta meta = item.getItemMeta();
+        //noinspection ConstantConditions
+        meta.getPersistentDataContainer().set(ShipManager.shipDataKey, PersistentDataType.STRING,
+                ship.getOrigin().getPersistentDataContainer().get(ShipManager.shipDataKey, PersistentDataType.STRING));
+        item.setItemMeta(meta);
+        dropLocation.getWorld().dropItem(dropLocation, item);
     }
 }

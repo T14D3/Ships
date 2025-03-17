@@ -19,12 +19,16 @@ public final class Ships extends JavaPlugin {
     private MoveListener moveListener;
     private Team collisionTeam;
     private PacketUtils packetUtils;
+    private Converter converter;
+
+    private long mainThreadId;
 
     public static Ships getInstance() {
         return instance;
     }
     @Override
     public void onEnable() {
+        mainThreadId = Thread.currentThread().threadId();
         // Plugin startup logic
         instance = this;
 
@@ -47,6 +51,8 @@ public final class Ships extends JavaPlugin {
         getServer().getPluginManager().registerEvents(moveListener, this);
 
         packetUtils = new PacketUtils(this);
+
+        converter = new Converter(this);
 
         getServer().getPluginManager().registerEvents(new CollisionTeamListener(), this);
     }
@@ -80,5 +86,13 @@ public final class Ships extends JavaPlugin {
 
     public PacketUtils getPacketUtils() {
         return packetUtils;
+    }
+
+    public Converter getConverter() {
+        return converter;
+    }
+
+    public long getMainThreadId() {
+        return mainThreadId;
     }
 }

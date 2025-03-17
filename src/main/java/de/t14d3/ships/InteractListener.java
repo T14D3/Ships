@@ -1,7 +1,10 @@
 package de.t14d3.ships;
 
 import net.kyori.adventure.text.Component;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -10,10 +13,19 @@ import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDismountEvent;
 import org.bukkit.event.player.PlayerInteractAtEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.util.Vector;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class InteractListener implements Listener {
     private final Ships plugin;
@@ -23,7 +35,7 @@ public class InteractListener implements Listener {
     }
 
     @EventHandler
-    public void onInteract(PlayerInteractAtEntityEvent event) {
+    public void onEntityInteract(PlayerInteractAtEntityEvent event) {
         if (event.getRightClicked() instanceof ArmorStand armorStand) {
             if (armorStand.getPersistentDataContainer().has(new NamespacedKey(plugin, "ship"), PersistentDataType.STRING)) {
                 Ship ship = plugin.getShipManager().getShip(armorStand.getUniqueId());
@@ -54,6 +66,20 @@ public class InteractListener implements Listener {
                     ship.setController(event.getPlayer());
                 }
                 shulker.addPassenger(event.getPlayer());
+            }
+        }
+    }
+
+    @EventHandler
+    public void onInteract(PlayerInteractEvent event) {
+        if (event.getClickedBlock() != null && event.getItem() != null) {
+            if (event.getItem().getType() == Material.PAPER) {
+                List<Block> blocks = CompletableFuture.supplyAsync(()
+                        -> plugin.getConverter().getConnectedBlocks(event.getClickedBlock(), 20)).join();
+                if (!blocks.isEmpty()) {
+                    plugin.getPacketUtils().createFromBlocklist(blocks, event.getClickedBlock().getLocation());
+                    blocks.forEach(block -> block.setType(Material.AIR));
+                }
             }
         }
     }

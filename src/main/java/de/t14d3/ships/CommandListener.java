@@ -40,7 +40,7 @@ public class CommandListener implements CommandExecutor, TabCompleter {
                 }
                 break;
             case "multi":
-                plugin.getPacketUtils().multi((Player) sender);
+                plugin.getConverter().convert((Player) sender);
                 break;
             case "recreate":
                 plugin.getPacketUtils().recreateShip((ArmorStand) ((Player) sender).rayTraceEntities(10).getHitEntity());
