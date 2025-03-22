@@ -14,6 +14,7 @@ import org.bukkit.event.Listener;
 import com.comphenix.protocol.ProtocolManager;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Vector;
+import org.joml.Quaternionf;
 
 public class MoveListener implements Listener {
     private final Ships thisplugin;
@@ -69,7 +70,7 @@ public class MoveListener implements Listener {
     public void onLoad(PlayerTrackEntityEvent event) {
         if (event.getEntity() instanceof ArmorStand armorStand) {
             if (armorStand.getPersistentDataContainer().has(ShipManager.shipDataKey, PersistentDataType.STRING)) {
-                Ship ship = thisplugin.getShipManager().getShip(armorStand.getUniqueId());
+                Ship ship = thisplugin.getShipManager().getShip(armorStand);
                 if (ship != null) {
                     int[] entityIds = new int[ship.getShipBlocks().size()];
                     for (int i = 0; i < ship.getShipBlocks().size(); i++) {

@@ -39,7 +39,7 @@ public class InteractListener implements Listener {
     public void onEntityInteract(PlayerInteractAtEntityEvent event) {
         if (event.getRightClicked() instanceof ArmorStand armorStand) {
             if (armorStand.getPersistentDataContainer().has(new NamespacedKey(plugin, "ship"), PersistentDataType.STRING)) {
-                Ship ship = plugin.getShipManager().getShip(armorStand.getUniqueId());
+                Ship ship = plugin.getShipManager().getShip(armorStand);
                 if (ship != null) {
                     ship.setController(event.getPlayer());
                     ShipBlock shipBlock = ship.getClosestBlock(event.getPlayer().getLocation());
@@ -84,6 +84,7 @@ public class InteractListener implements Listener {
                                 -> plugin.getConverter().getConnectedBlocks(event.getClickedBlock(), 20)).join();
                         if (!blocks.isEmpty()) {
                             plugin.getPacketUtils().highlightBlocks(event.getPlayer(), blocks);
+                            event.getPlayer().sendMessage("Highlighted " + plugin.getPacketUtils().getPlayerSelection(event.getPlayer()).getBlocks().size() + " blocks");
                         }
                     }
                 } else {

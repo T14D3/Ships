@@ -16,11 +16,11 @@ import com.google.gson.JsonParser;
 import io.papermc.paper.entity.TeleportFlag;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import net.kyori.adventure.text.Component;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.PositionMoveRotation;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Bukkit;
-import org.bukkit.Effect;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
@@ -32,8 +32,6 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
 import org.bukkit.event.player.PlayerTeleportEvent;
 import org.bukkit.persistence.PersistentDataType;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -46,7 +44,7 @@ public class PacketUtils {
     private final ProtocolManager protocolManager;
     private final FieldAccessor entityId = Accessors.getFieldAccessor(Entity.class, AtomicInteger.class, true);
 
-    private Map<Player, PlayerSelection> playerSelections = new HashMap<>();
+    private final Map<Player, PlayerSelection> playerSelections = new HashMap<>();
 
     private final Ships plugin;
     private static final BlockData AIR = Bukkit.createBlockData(Material.AIR);
@@ -86,10 +84,10 @@ public class PacketUtils {
         if (selection == null) {
             return;
         }
+        createFromBlocklist(List.copyOf(selection.getBlocks()), center);
         for (Block block : selection.getBlocks()) {
             block.setBlockData(AIR, false);
         }
-        createFromBlocklist(List.copyOf(selection.getBlocks()), center);
         removeEntities(player);
     }
 
@@ -102,10 +100,6 @@ public class PacketUtils {
         armorStand.setGravity(false);
         armorStand.setInvulnerable(true);
         armorStand.setInvisible(true);
-        int entityId = armorStand.getEntityId();
-
-        PacketContainer passenger = protocolManager.createPacket(PacketType.Play.Server.MOUNT);
-        passenger.getIntegers().write(0, entityId);
 
 
         int[] entityIds = new int[blocks.size()];
@@ -113,6 +107,9 @@ public class PacketUtils {
         JsonObject shipData = new JsonObject();
         int i = 0;
         for (Block block : blocks) {
+            if (!Converter.isVisible(block)) {
+                continue;
+            }
             Vector3f translation = new Vector3f(
                     (float) (block.getLocation().getX() - center.getX()),
                     (float) (block.getLocation().getY() - center.getY()),
@@ -126,23 +123,29 @@ public class PacketUtils {
             shipBlocks.add(new ShipBlock(translation, entityIds[i], block.getState()));
             i++;
         }
-        armorStand.getPersistentDataContainer().set(shipDataKey, PersistentDataType.STRING, shipData.toString());
-        passenger.getIntegerArrays().write(0, entityIds);
 
-        plugin.getShipManager().addShip(new Ship(armorStand, shipBlocks));
-
-        protocolManager.broadcastServerPacket(passenger, center, 50);
+        Ship ship = new Ship(armorStand, shipBlocks);
+        ship.setData(shipData);
+        plugin.getShipManager().addShip(ship);
+        sendMountPacket(armorStand, entityIds, null);
     }
+
     public Ship recreateShip(ArmorStand armorStand) {
-        return recreateShip(armorStand, null);
-    }
-
-    public Ship recreateShip(ArmorStand armorStand, Player player) {
         armorStand.setRotation(0, 0);
         armorStand.teleportAsync(armorStand.getLocation().subtract(0, 2, 0), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
-        String temp = armorStand.getPersistentDataContainer().get(shipDataKey, PersistentDataType.STRING);
-        assert temp != null;
-        JsonObject shipData = JsonParser.parseString(temp).getAsJsonObject();
+
+        //noinspection ConstantConditions
+        UUID uuid = UUID.fromString(armorStand.getPersistentDataContainer().get(ShipManager.shipDataKey, PersistentDataType.STRING));
+
+        return plugin.getShipManager().loadShip(armorStand, uuid);
+    }
+
+    public Ship recreateShip(String data, ArmorStand armorStand, UUID uuid) {
+        armorStand.setGravity(false);
+        armorStand.setInvisible(true);
+        armorStand.setRotation(0, 0);
+        armorStand.teleportAsync(armorStand.getLocation().setRotation(0,0).subtract(0, 2, 0), PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
+        JsonObject shipData = JsonParser.parseString(data).getAsJsonObject();
         List<ShipBlock> blocks = new ArrayList<>();
         int[] entityIds = new int[shipData.keySet().size()];
         for (Map.Entry<String, JsonElement> element : shipData.entrySet()) {
@@ -159,17 +162,14 @@ public class PacketUtils {
             entityIds[Integer.parseInt(element.getKey())] = entityId;
         }
 
-        PacketContainer passenger = protocolManager.createPacket(PacketType.Play.Server.MOUNT);
-        passenger.getIntegers().write(0, armorStand.getEntityId());
-        passenger.getIntegerArrays().write(0, entityIds);
-        if (player != null) {
-            protocolManager.sendServerPacket(player, passenger);
-        } else {
-            protocolManager.broadcastServerPacket(passenger, armorStand.getLocation(), 50);
-        }
-
-        Ship ship = new Ship(armorStand, blocks);
+        Ship ship = new Ship(armorStand, blocks, uuid);
+        ship.setData(shipData);
         plugin.getShipManager().addShip(ship);
+
+        plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
+            sendMountPacket(armorStand, entityIds, null);
+        }, 1L);
+
         return ship;
     }
 
@@ -188,6 +188,9 @@ public class PacketUtils {
         PacketContainer packet = protocolManager.createPacket(PacketType.Play.Server.MOUNT);
         packet.getIntegers().write(0, armorStand.getEntityId());
         packet.getIntegerArrays().write(0, passengers);
+
+        plugin.getServer().broadcast(Component.text("Sending mount packet for " + armorStand.getEntityId() + " with " + passengers.length + " passengers"));
+
         if (player != null) {
             protocolManager.sendServerPacket(player, packet);
         } else {
@@ -275,6 +278,10 @@ public class PacketUtils {
             selection.addBlock(block);
             selection.addEntityId(entityId);
         }
+    }
+
+    public PlayerSelection getPlayerSelection(Player player) {
+        return playerSelections.get(player);
     }
 
     static class PlayerSelection {

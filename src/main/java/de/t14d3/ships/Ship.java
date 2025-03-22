@@ -1,6 +1,8 @@
 package de.t14d3.ships;
 
+import com.google.gson.JsonObject;
 import io.papermc.paper.entity.TeleportFlag;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.BlockDisplay;
@@ -11,8 +13,7 @@ import org.bukkit.util.Vector;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 public class Ship {
     private ArmorStand origin;
@@ -24,15 +25,22 @@ public class Ship {
 
     private Player controller;
 
-    private List<Player> playersInShip = new ArrayList<>();
+    private JsonObject data;
 
-    public Ship(ArmorStand origin, List<ShipBlock> shipBlocks) {
+    private UUID uuid;
+
+    public Ship(ArmorStand origin, List<ShipBlock> shipBlocks, UUID uuid) {
         this.origin = origin;
         this.shipBlocks = shipBlocks;
 
         this.velocity = new Vector(0, 0, 0);
         this.vectorToRotate = new Vector(0, 0, 0);
         this.orientation = new Quaternionf();
+        this.uuid = uuid;
+    }
+
+    public Ship(ArmorStand origin, List<ShipBlock> shipBlocks) {
+        this(origin, shipBlocks, UUID.randomUUID());
     }
 
     public void rotate(Vector rotationVector) {
@@ -46,13 +54,18 @@ public class Ship {
         this.orientation.mul(rotation);
 
         // Calculate new transformations for each block
+        Map<ShipBlock, Vector3f> newTranslations = new HashMap<>();
         for (ShipBlock shipBlock : shipBlocks) {
-            Vector3f originalOffset = shipBlock.getOffset();
-
             // Rotate the original offset by the current orientation to get the new translation
-            Vector3f newTranslation = new Vector3f(originalOffset).rotate(this.orientation);
-
-            Ships.getInstance().getPacketUtils().sendEntityMetadataUpdate(shipBlock.getEntityId(), newTranslation, this.orientation, shipBlock.getLocation(this));
+            Vector3f newTranslation = new Vector3f(shipBlock.getOffset()).rotate(this.orientation);
+            if (getOrigin().getLocation().add(Vector.fromJOML(newTranslation).add(new Vector(1, 2, 1))).getBlock().isCollidable()) {
+                newTranslations.clear();
+                return;
+            }
+            newTranslations.put(shipBlock, newTranslation);
+        }
+        for (ShipBlock shipBlock : shipBlocks) {
+            Ships.getInstance().getPacketUtils().sendEntityMetadataUpdate(shipBlock.getEntityId(), newTranslations.get(shipBlock), this.orientation, shipBlock.getLocation(this));
         }
     }
 
@@ -74,15 +87,19 @@ public class Ship {
     }
 
     public void moveTo(Location newLocation) {
-        origin.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
         for (ShipBlock shipBlock : shipBlocks) {
+            Location offsetLocation = newLocation.clone().add(Vector.fromJOML(shipBlock.getOffset()).add(new Vector(1, 2, 1)));
+            if (offsetLocation.getBlock().isCollidable()) {
+                return;
+            }
             if (shipBlock.getSeat() != null) {
                 shipBlock.getSeat().teleportAsync(
-                        newLocation.add(shipBlock.getSeat().getLocation().subtract(origin.getLocation())),
+                        offsetLocation,
                         PlayerTeleportEvent.TeleportCause.PLUGIN,
                         TeleportFlag.EntityState.RETAIN_PASSENGERS);
             }
         }
+        origin.teleportAsync(newLocation, PlayerTeleportEvent.TeleportCause.PLUGIN, TeleportFlag.EntityState.RETAIN_PASSENGERS);
     }
 
     public void move(Vector direction) {
@@ -117,22 +134,6 @@ public class Ship {
         return controller;
     }
 
-    public void addPlayer(Player player) {
-        this.playersInShip.add(player);
-    }
-
-    public void removePlayer(Player player) {
-        this.playersInShip.remove(player);
-    }
-
-    public List<Player> getPlayersInShip() {
-        return playersInShip;
-    }
-
-    public boolean isPlayerInShip(Player player) {
-        return playersInShip.contains(player);
-    }
-
     public List<ShipBlock> getShipBlocks() {
         return shipBlocks;
     }
@@ -152,5 +153,17 @@ public class Ship {
             entityIds[i] = shipBlocks.get(i).getEntityId();
         }
         return entityIds;
+    }
+
+    public void setData(JsonObject data) {
+        this.data = data;
+    }
+
+    public JsonObject getData() {
+        return data;
+    }
+
+    public UUID getUuid() {
+        return uuid;
     }
 }

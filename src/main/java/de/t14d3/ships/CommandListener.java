@@ -45,6 +45,9 @@ public class CommandListener implements CommandExecutor, TabCompleter {
             case "recreate":
                 plugin.getPacketUtils().recreateShip((ArmorStand) ((Player) sender).rayTraceEntities(10).getHitEntity());
                 break;
+            case "save":
+                plugin.getShipManager().save();
+                break;
             default:
                 sender.sendMessage("Invalid command");
                 return true;

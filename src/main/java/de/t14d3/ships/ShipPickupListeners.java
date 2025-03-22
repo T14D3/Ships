@@ -12,6 +12,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.persistence.PersistentDataType;
 
+import java.util.UUID;
+
 public class ShipPickupListeners implements Listener {
     private final Ships plugin;
 
@@ -24,13 +26,13 @@ public class ShipPickupListeners implements Listener {
         if (event.getEntity() instanceof ArmorStand armorStand) {
             if (armorStand.getPersistentDataContainer().has(ShipManager.shipDataKey, PersistentDataType.STRING)) {
                 event.getDrops().clear();
-                Ship ship = plugin.getShipManager().getShip(armorStand.getUniqueId());
+                Ship ship = plugin.getShipManager().getShip(armorStand);
                 if (ship == null) {
                     plugin.getLogger().warning("Tried removing ship that doesn't exist: " + armorStand.getUniqueId());
                     return;
                 }
                 createItemDrop(ship, event.getEntity().getLocation());
-                plugin.getShipManager().removeShip(armorStand.getUniqueId());
+                plugin.getShipManager().removeShip(ship);
             }
         }
     }
@@ -43,18 +45,13 @@ public class ShipPickupListeners implements Listener {
             if (meta.getPersistentDataContainer().has(ShipManager.shipDataKey, PersistentDataType.STRING)) {
                 ArmorStand armorStand = (ArmorStand) event.getEntity();
                 //noinspection ConstantConditions
-                armorStand.getPersistentDataContainer().set(
-                        ShipManager.shipDataKey,
-                        PersistentDataType.STRING,
-                        meta.getPersistentDataContainer().get(ShipManager.shipDataKey, PersistentDataType.STRING)
-                );
-
-                Ship ship = plugin.getPacketUtils().recreateShip(armorStand);
+                UUID uuid = UUID.fromString(meta.getPersistentDataContainer().get(ShipManager.shipDataKey, PersistentDataType.STRING));
+                event.getPlayer().sendMessage(uuid.toString());
+                Ship ship = plugin.getShipManager().loadShip(armorStand, uuid);
                 if (ship != null) {
                     event.getPlayer().sendMessage("Ship created");
                 }
             }
-
         }
     }
 
@@ -75,7 +72,7 @@ public class ShipPickupListeners implements Listener {
         ItemMeta meta = item.getItemMeta();
         //noinspection ConstantConditions
         meta.getPersistentDataContainer().set(ShipManager.shipDataKey, PersistentDataType.STRING,
-                ship.getOrigin().getPersistentDataContainer().get(ShipManager.shipDataKey, PersistentDataType.STRING));
+                ship.getUuid().toString());
         item.setItemMeta(meta);
         dropLocation.getWorld().dropItem(dropLocation, item);
     }

@@ -1,8 +1,12 @@
 package de.t14d3.ships;
 
 import io.papermc.paper.entity.TeleportFlag;
+import org.bukkit.Bukkit;
 import org.bukkit.NamespacedKey;
 import org.bukkit.World;
+import org.bukkit.configuration.InvalidConfigurationException;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.*;
 import org.bukkit.Location;
 import org.bukkit.event.player.PlayerTeleportEvent;
@@ -10,23 +14,56 @@ import org.bukkit.persistence.PersistentDataType;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+import java.io.FileNotFoundException;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 
 public class ShipManager {
-    private final List<Ship> ships = new ArrayList<>();
+    private final Map<UUID, Ship> ships = new HashMap<>();
     private final Ships plugin;
     public static NamespacedKey booleanShipKey;
     public static NamespacedKey shipDataKey;
+    private final FileConfiguration config;
 
     public ShipManager(Ships plugin) {
         this.plugin = plugin;
         booleanShipKey = new NamespacedKey(plugin, "data");
         shipDataKey = new NamespacedKey(plugin, "ship");
+
+        this.config = new YamlConfiguration();
+        try {
+            config.load(plugin.getDataFolder().toPath().resolve("ships.yml").toFile());
+        } catch (FileNotFoundException e) {
+            // Ships.yml does not exist, create it
+            plugin.saveResource("ships.yml", false);
+        } catch (IOException | InvalidConfigurationException e) {
+            throw new RuntimeException(e);
+        }
     }
 
+    public Ship loadShip(ArmorStand origin, UUID uuid) {
+        String data = config.getString(uuid.toString());
+        if (data == null) {
+            return null;
+        }
+        Ship ship = plugin.getPacketUtils().recreateShip(data, origin, uuid);
+        if (ship != null) {
+            ships.put(uuid, ship);
+        }
+        plugin.getSLF4JLogger().info("Loaded ship {}", uuid);
+        return ship;
+    }
+
+    public void saveShip(UUID uuid, String data) {
+        config.set(uuid.toString(), data);
+        plugin.getSLF4JLogger().info("Saved ship {}", uuid);
+    }
+
+
+
     public void tick() {
-        for (Ship ship : ships) {
+        for (Ship ship : ships.values()) {
             if (!ship.getVector().isZero()) {
                 ship.move(ship.getVector());
             }
@@ -38,7 +75,7 @@ public class ShipManager {
     }
 
     private void updatePlayerFloorEntitiesAsync() {
-        for (Ship ship : ships) {
+        for (Ship ship : ships.values()) {
             if (ship.getShipBlocks() == null || ship.getShipBlocks().isEmpty()) {
                 continue;
             }
@@ -84,6 +121,9 @@ public class ShipManager {
                     shulker.setInvisible(true);
                     shulker.setGravity(false);
                     shulker.setNoPhysics(true);
+                    shulker.setInvulnerable(true);
+                    shulker.setCollidable(false);
+                    shulker.setAware(false);
                     armorStand.addPassenger(shulker);
 
                     // Store the Armor Stand (since it controls movement)
@@ -98,15 +138,23 @@ public class ShipManager {
     }
 
     public void addShip(Ship ship) {
-        ships.add(ship);
+        if (ships.containsKey(ship.getUuid())) {
+            return;
+        }
+        ships.put(ship.getUuid(), ship);
+        saveShip(ship.getUuid(), ship.getData().toString());
     }
 
-    public Ship getShip(UUID markerUuid) {
-        return ships.stream().filter(ship -> ship.getOrigin().getUniqueId() == markerUuid).findFirst().orElse(null);
+    public Ship getShip(UUID uuid) {
+        return ships.get(uuid);
+    }
+
+    public Ship getShip(ArmorStand armorStand) {
+        return ships.values().stream().filter(ship -> ship.getOrigin().equals(armorStand)).findFirst().orElse(null);
     }
 
     public Ship getControlledBy(Player player) {
-        for (Ship ship : ships) {
+        for (Ship ship : ships.values()) {
             if (ship.getController() == player) {
                 return ship;
             }
@@ -116,9 +164,12 @@ public class ShipManager {
 
     public CompletableFuture<Ship> getShipFromShulker(Shulker shulker) {
         return CompletableFuture.supplyAsync(() -> {
-            for (Ship ship : ships) {
+            for (Ship ship : ships.values()) {
                 if (ship.getShipBlocks() != null) {
                     for (ShipBlock shipBlock : ship.getShipBlocks()) {
+                        if (shipBlock.getFloor() == null) {
+                            continue;
+                        }
                         if (shipBlock.getFloor().getPassengers().contains(shulker)) {
                             return ship;
                         }
@@ -131,7 +182,7 @@ public class ShipManager {
 
     public CompletableFuture<Ship> getShipFromSeat(ArmorStand armorStand) {
         return CompletableFuture.supplyAsync(() -> {
-            for (Ship ship : ships) {
+            for (Ship ship : ships.values()) {
                 if (ship.getShipBlocks() != null) {
                     for (ShipBlock shipBlock : ship.getShipBlocks()) {
                         if (shipBlock.getSeat().equals(armorStand)) {
@@ -161,7 +212,7 @@ public class ShipManager {
     }
 
     public void removeShip(UUID uuid) {
-        Ship target = ships.stream().filter(ship -> ship.getOrigin().getUniqueId() == uuid).findFirst().orElse(null);
+        Ship target = ships.get(uuid);
         if (target != null) {
             removeShip(target);
         }
@@ -178,6 +229,17 @@ public class ShipManager {
         if (ship.getOrigin() != null && ship.getOrigin().isValid()) {
             ship.getOrigin().remove();
         }
-        ships.remove(ship);
+        ships.remove(ship.getUuid());
+    }
+
+    public void save() {
+        for (Ship ship : ships.values()) {
+            saveShip(ship.getOrigin().getUniqueId(), ship.getData().toString());
+        }
+        try {
+            config.save(plugin.getDataFolder().toPath().resolve("ships.yml").toFile());
+        } catch (IOException e) {
+            plugin.getLogger().severe("Could not save ships.yml: " + e.getMessage());
+        }
     }
 }
